@@ -5,3 +5,7 @@ __pycache__/
 .vscode/
 .DS_Store
 dist/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
