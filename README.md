@@ -32,11 +32,13 @@ false alarms.
   - `sensor.water_leak_detector_last_pulse` (timestamp) — last meter increment
   - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool use
 - Sends notifications through any `notify.*` service — picked from a dropdown
-  of the ones installed on your system (clear it to disable; a failed send
-  falls back to a persistent notification). Optionally add extra per-service
-  data as JSON — e.g. `{"chat_id": "123456"}` to target a Telegram channel —
-  merged into every notification call. A *Send test notification* action is
-  available from the integration's options screen to verify it all works
+  of the ones installed on your system — or straight through a Telegram bot
+  via `telegram_bot.send_message` (no notify layer needed); clear the field
+  to disable (a failed send falls back to a persistent notification).
+  Optionally add extra per-service data as JSON — e.g. `{"chat_id": "123456"}`
+  to target a Telegram channel — merged into every notification call. A *Send
+  test notification* action is available from the integration's options
+  screen to verify it all works
 - Fires `water_leak_detected` / `water_leak_resolved` events for your own
   automations
 - Alerts you when the meter stops reporting — signal-loss timeout is
@@ -54,7 +56,8 @@ false alarms.
    Meters*.
 3. Pick your water meter entity, the thresholds, the meter's pulse size, the
    signal-loss timeout, and the notification service (a dropdown of your
-   installed `notify.*` services — leave it empty for no notifications). Done.
+   installed `notify.*` services plus `telegram_bot.send_message` — leave it
+   empty for no notifications). Done.
 
 ## Caveats
 

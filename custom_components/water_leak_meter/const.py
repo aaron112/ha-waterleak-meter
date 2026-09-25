@@ -17,6 +17,7 @@ DEFAULT_LIMIT_MIN = 120
 DEFAULT_PULSE_FT3 = 2.0
 DEFAULT_NOTIFY_SERVICE = "notify.telegram"
 DEFAULT_STALE_MIN = 180
+TELEGRAM_BOT_SERVICE = "telegram_bot.send_message"
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "water_leak_meter"

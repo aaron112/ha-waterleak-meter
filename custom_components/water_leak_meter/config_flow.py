@@ -34,6 +34,7 @@ from .const import (
     QUIET_MIN_MIN,
     STALE_MIN_MAX,
     STALE_MIN_MIN,
+    TELEGRAM_BOT_SERVICE,
 )
 
 
@@ -55,16 +56,23 @@ _AMBIGUOUS_NOTIFY = ("notify", "send_message")
 
 
 def _notify_services(hass: HomeAssistant) -> list[str]:
-    """Return the instance's notify services as 'notify.<name>' labels.
+    """Return usable notification channels as 'domain.service' labels.
 
     `notify.notify` is only an alias HA routes to the first notification
     service it finds, and `notify.send_message` requires an entity target —
-    neither delivers through a bare title/message call, so skip both.
+    neither delivers through a bare title/message call, so skip both. The
+    telegram_bot integration is offered as its own channel, since it does
+    not sit behind the notify layer.
     """
-    services = hass.services.async_services().get("notify", {})
-    return sorted(
-        f"notify.{name}" for name in services if name not in _AMBIGUOUS_NOTIFY
-    )
+    services = hass.services.async_services()
+    names = [
+        f"notify.{name}"
+        for name in services.get("notify", {})
+        if name not in _AMBIGUOUS_NOTIFY
+    ]
+    if "send_message" in services.get("telegram_bot", {}):
+        names.append(TELEGRAM_BOT_SERVICE)
+    return sorted(names)
 
 
 def _notify_default(hass: HomeAssistant, current: str | None = None) -> str:
@@ -77,8 +85,9 @@ def _notify_default(hass: HomeAssistant, current: str | None = None) -> str:
     if current is not None:
         return current
     options = _notify_services(hass)
-    if DEFAULT_NOTIFY_SERVICE in options:
-        return DEFAULT_NOTIFY_SERVICE
+    for preferred in (DEFAULT_NOTIFY_SERVICE, TELEGRAM_BOT_SERVICE):
+        if preferred in options:
+            return preferred
     return options[0] if options else ""
 
 
@@ -126,10 +135,18 @@ async def _validate(hass: HomeAssistant, user_input: dict[str, Any]) -> str | No
     notify = (user_input.get(CONF_NOTIFY_SERVICE) or "").strip()
     if not notify:
         pass
-    elif not notify.startswith("notify."):
+    elif "." not in notify:
         return "invalid_notify"
-    elif not hass.services.has_service("notify", notify.split(".", 1)[1]):
-        return "invalid_notify"
+    else:
+        domain, service = notify.split(".", 1)
+        if domain == "notify":
+            if not hass.services.has_service("notify", service):
+                return "invalid_notify"
+        elif notify == TELEGRAM_BOT_SERVICE:
+            if not hass.services.has_service("telegram_bot", "send_message"):
+                return "invalid_notify"
+        else:
+            return "invalid_notify"
     notify_data = (user_input.get(CONF_NOTIFY_DATA) or "").strip()
     if notify_data:
         try:
@@ -226,7 +243,8 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="send_test", errors={"base": "no_notify_service"}
                 )
-            if hub.notify_service.split(".", 1)[1] in _AMBIGUOUS_NOTIFY:
+            domain, _, service = hub.notify_service.partition(".")
+            if domain == "notify" and service in _AMBIGUOUS_NOTIFY:
                 return self.async_show_form(
                     step_id="send_test", errors={"base": "notify_ambiguous"}
                 )

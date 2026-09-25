@@ -19,13 +19,13 @@
           "limit_min": "How long continuous flow must last before a leak is declared and you're alerted. Default 120 min.",
           "pulse_ft3": "Volume per meter pulse. Check the meter's label (e.g. \"2 ft³ per pulse\"). Controls the smallest leak the cadence method can report.",
           "stale_min": "Alert if no reading arrives for this long — your bridge/receiver has likely lost signal. 0 turns the check off. Default 180 min (3 h).",
-          "notify_service": "Service that receives the alert (e.g. notify.telegram). Pick one from the list, or clear it to turn notifications off — alerts still show on the Leak Detected sensor.",
-          "notify_data": "Optional JSON merged into every notification call. For Telegram: {\"chat_id\": \"123456\"}. Leave empty for the default recipient."
+          "notify_service": "Service that receives the alert: a notify. service (e.g. notify.telegram), or telegram_bot.send_message to send straight through a Telegram bot. Pick one from the list, or clear it to turn notifications off — alerts still show on the Leak Detected sensor.",
+          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram. For telegram_bot.send_message it's Telegram fields, e.g. {\"chat_id\": \"123456\"}. Leave empty for the default recipient."
         }
       }
     },
     "error": {
-      "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
+      "invalid_notify": "Pick an available notification service (e.g. notify.telegram or telegram_bot.send_message).",
       "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}."
     },
     "abort": {
@@ -59,8 +59,8 @@
           "limit_min": "How long continuous flow must last before a leak is declared and you're alerted.",
           "pulse_ft3": "Volume per meter pulse (check the meter's label). Controls the smallest leak the cadence method can report.",
           "stale_min": "Alert if no reading arrives for this long (bridge/receiver signal loss). 0 turns the check off.",
-          "notify_service": "Service that receives the alert, or clear it to disable notifications — alerts still show on the Leak Detected sensor.",
-          "notify_data": "Optional JSON merged into every notification call, e.g. {\"chat_id\": \"123456\"} for Telegram."
+          "notify_service": "Service that receives the alert (notify.telegram, telegram_bot.send_message, …), or clear it to disable notifications — alerts still show on the Leak Detected sensor.",
+          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram; for telegram_bot.send_message it's Telegram fields like {\"chat_id\": \"123456\"}, {\"parse_mode\": \"markdown\"}."
         }
       },
       "send_test": {
@@ -72,7 +72,7 @@
       }
     },
     "error": {
-      "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
+      "invalid_notify": "Pick an available notification service (e.g. notify.telegram or telegram_bot.send_message).",
       "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}.",
       "hub_unavailable": "The integration is not loaded right now, try again shortly.",
       "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off).",

@@ -341,19 +341,19 @@ class WaterLeakHub:
     async def _notify(self, title: str, message: str, notification_id: str) -> None:
         if not self.notify_service:
             return
-        if not self.notify_service.startswith("notify."):
+        domain, _, service = self.notify_service.partition(".")
+        if domain not in ("notify", "telegram_bot"):
             _LOGGER.warning("Invalid notify service configured: %s", self.notify_service)
             return
         call_data: dict[str, Any] = {"title": title, "message": message}
         if self.notify_data:
-            call_data["data"] = dict(self.notify_data)
+            if domain == "notify":
+                call_data["data"] = dict(self.notify_data)
+            else:
+                call_data.update(self.notify_data)
         try:
             await asyncio.wait_for(
-                self.hass.services.async_call(
-                    "notify",
-                    self.notify_service.split(".", 1)[1],
-                    call_data,
-                ),
+                self.hass.services.async_call(domain, service, call_data),
                 timeout=10,
             )
         except Exception as err:
