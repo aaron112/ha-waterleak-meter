@@ -1,4 +1,4 @@
-"""Binary sensor for the Water Leak Detector integration."""
+"""Binary sensor for the Water Leak Detection for Meters integration."""
 
 from __future__ import annotations
 

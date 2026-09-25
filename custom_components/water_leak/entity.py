@@ -1,4 +1,4 @@
-"""Shared entity base for the Water Leak Detector integration."""
+"""Shared entity base for the Water Leak Detection for Meters integration."""
 
 from __future__ import annotations
 

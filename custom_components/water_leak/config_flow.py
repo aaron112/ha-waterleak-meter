@@ -1,4 +1,4 @@
-"""Config flow for the Water Leak Detector integration."""
+"""Config flow for the Water Leak Detection for Meters integration."""
 
 from __future__ import annotations
 
@@ -14,25 +14,31 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_LIMIT_MIN,
     CONF_NOTIFY_SERVICE,
+    CONF_PULSE_FT3,
     CONF_QUIET_MIN,
     CONF_WATER_METER,
     DEFAULT_LIMIT_MIN,
     DEFAULT_NOTIFY_SERVICE,
+    DEFAULT_PULSE_FT3,
     DEFAULT_QUIET_MIN,
     DOMAIN,
     LIMIT_MIN_MAX,
     LIMIT_MIN_MIN,
+    PULSE_FT3_MAX,
+    PULSE_FT3_MIN,
     QUIET_MIN_MAX,
     QUIET_MIN_MIN,
 )
 
 
-def _number_selector(min_value: float, max_value: float, unit: str) -> selector.NumberSelector:
+def _number_selector(
+    min_value: float, max_value: float, unit: str, step: float = 1.0
+) -> selector.NumberSelector:
     return selector.NumberSelector(
         selector.NumberSelectorConfig(
             min=min_value,
             max=max_value,
-            step=1,
+            step=step,
             mode="box",
             unit_of_measurement=unit,
         )
@@ -52,6 +58,9 @@ def _user_schema() -> vol.Schema:
                 LIMIT_MIN_MIN, LIMIT_MIN_MAX, "min"
             ),
             vol.Required(
+                CONF_PULSE_FT3, default=DEFAULT_PULSE_FT3
+            ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
+            vol.Required(
                 CONF_NOTIFY_SERVICE, default=DEFAULT_NOTIFY_SERVICE
             ): selector.TextSelector(),
         }
@@ -70,7 +79,7 @@ async def _validate(hass: HomeAssistant, user_input: dict[str, Any]) -> str | No
 
 
 class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Water Leak Detector."""
+    """Handle a config flow for Water Leak Detection for Meters."""
 
     VERSION = 1
 
@@ -84,7 +93,7 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_NOTIFY_SERVICE] = error
             else:
                 return self.async_create_entry(
-                    title="Water Leak Detector",
+                    title="Water Leak Detection for Meters",
                     data={},
                     options=user_input,
                 )
@@ -138,6 +147,9 @@ def _option_schema(options: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_LIMIT_MIN, default=int(options.get(CONF_LIMIT_MIN, DEFAULT_LIMIT_MIN))
             ): _number_selector(LIMIT_MIN_MIN, LIMIT_MIN_MAX, "min"),
+            vol.Required(
+                CONF_PULSE_FT3, default=float(options.get(CONF_PULSE_FT3, DEFAULT_PULSE_FT3))
+            ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
             vol.Required(
                 CONF_NOTIFY_SERVICE, default=options.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE)
             ): selector.TextSelector(),

@@ -1,4 +1,4 @@
-"""Switch for the Water Leak Detector integration."""
+"""Switch for the Water Leak Detection for Meters integration."""
 
 from __future__ import annotations
 

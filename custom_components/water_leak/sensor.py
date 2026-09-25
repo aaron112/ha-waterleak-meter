@@ -1,4 +1,4 @@
-"""Sensors for the Water Leak Detector integration."""
+"""Sensors for the Water Leak Detection for Meters integration."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_LIMIT_MIN, CONF_QUIET_MIN, DOMAIN
+from .const import CONF_LIMIT_MIN, CONF_PULSE_FT3, CONF_QUIET_MIN, DOMAIN
 from .entity import WaterLeakEntity
 
 
@@ -48,6 +48,8 @@ class WaterLeakActivitySensor(WaterLeakEntity, SensorEntity):
         self._attr_extra_state_attributes = {
             CONF_QUIET_MIN: self.hub.quiet_min,
             CONF_LIMIT_MIN: self.hub.limit_min,
+            CONF_PULSE_FT3: self.hub.pulse_ft3,
+            "min_detectable_leak_l_day": self.hub.min_detectable_leak_l_day,
             "water_meter": self.hub.water_meter,
             "last_meter_value": self.hub.last_value,
         }

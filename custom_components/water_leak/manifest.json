@@ -1,6 +1,6 @@
 {
   "domain": "water_leak",
-  "name": "Water Leak Detector",
+  "name": "Water Leak Detection for Meters",
   "codeowners": ["@aaron112"],
   "config_flow": true,
   "dependencies": [],

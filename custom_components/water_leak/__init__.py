@@ -1,4 +1,4 @@
-"""Water Leak Detector integration.
+"""Water Leak Detection for Meters integration.
 
 Detects leaks from a cumulative water-consumption meter (ft³) that only
 reports in coarse pulses (~2 ft³) by watching pulse cadence: pulses arriving
@@ -26,14 +26,17 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_LIMIT_MIN,
     CONF_NOTIFY_SERVICE,
+    CONF_PULSE_FT3,
     CONF_QUIET_MIN,
     CONF_WATER_METER,
     DEFAULT_LIMIT_MIN,
     DEFAULT_NOTIFY_SERVICE,
+    DEFAULT_PULSE_FT3,
     DEFAULT_QUIET_MIN,
     DOMAIN,
     EVENT_LEAK_DETECTED,
     EVENT_LEAK_RESOLVED,
+    LITERS_PER_CUBIC_FOOT,
     PLATFORMS,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -81,6 +84,9 @@ class WaterLeakHub:
         self.water_meter: str = entry.options.get(CONF_WATER_METER)
         self.quiet_min: int = int(entry.options.get(CONF_QUIET_MIN, DEFAULT_QUIET_MIN))
         self.limit_min: int = int(entry.options.get(CONF_LIMIT_MIN, DEFAULT_LIMIT_MIN))
+        self.pulse_ft3: float = float(
+            entry.options.get(CONF_PULSE_FT3, DEFAULT_PULSE_FT3)
+        )
         self.notify_service: str = entry.options.get(
             CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE
         )
@@ -182,6 +188,11 @@ class WaterLeakHub:
         if was_leak:
             self.leak_active = False
             await self._save()
+            # A pulse landed while we were awaiting: flow resumed, alert
+            # already re-fired. Don't follow it with a spurious "resolved".
+            if token != self._watchdog_seq:
+                self._notify_entities()
+                return
             await self._send_resolved()
         self._notify_entities()
 
@@ -237,6 +248,13 @@ class WaterLeakHub:
         if self.last_pulse_ts is None:
             return None
         return dt_util.utc_from_timestamp(self.last_pulse_ts).isoformat()
+
+    @property
+    def min_detectable_leak_l_day(self) -> float:
+        """Smallest continuous leak this meter can surface, given pulse size."""
+        return round(
+            self.pulse_ft3 * LITERS_PER_CUBIC_FOOT * 24 * 60 / self.quiet_min, 1
+        )
 
     def add_entity(self, entity: Any) -> None:
         self._entities.append(entity)
