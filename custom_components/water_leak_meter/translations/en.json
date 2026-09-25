@@ -65,14 +65,6 @@
         "description_placeholders": {
           "notify": "the configured notification service"
         }
-      },
-      "simulate_leak": {
-        "title": "Simulate a leak",
-        "description": "Synthetic readings drove continuous flow past the alert threshold (~{activity_min} min) — the same Leak Detected alert and notification as real flow, firing now. Alerting resolves on its own after {quiet_min} min of quiet. Your real meter readings are untouched.",
-        "description_placeholders": {
-          "activity_min": "the leak threshold",
-          "quiet_min": "quiet"
-        }
       }
     },
     "error": {
@@ -80,9 +72,6 @@
       "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}.",
       "hub_unavailable": "The integration is not loaded right now, try again shortly.",
       "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off).",
-      "already_leaking": "A leak is already active right now — the simulation can't double-fire. Wait for it to resolve, then retry.",
-      "suppressed": "Alerts are suppressed (the Suppress Alerts switch is on). Turn it off first.",
-      "simulate_failed": "The simulated flow didn't cross the leak threshold. Check your Quiet threshold / Leak threshold settings.",
       "notify_ambiguous": "`notify.notify` is only an alias Home Assistant routes to the first notification service it finds, so it can silently deliver nothing. Choose a real service — e.g. notify.telegram, a notify.group, or your mobile device."
     }
   }

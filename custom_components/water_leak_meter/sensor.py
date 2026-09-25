@@ -67,4 +67,4 @@ class WaterLeakLastPulseSensor(WaterLeakEntity, SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}-last-pulse"
 
     def update_from_hub(self) -> None:
-        self._attr_native_value = self.hub.last_pulse_iso
+        self._attr_native_value = self.hub.last_pulse_dt

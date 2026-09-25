@@ -227,16 +227,19 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is None:
             hub = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
             if hub is None:
-                return self.async_show_form(
-                    step_id="simulate_leak", errors={"base": "hub_unavailable"}
+                return self._menu_message(
+                    "The integration isn't loaded right now — wait a moment and try again."
                 )
             if hub.suppressed:
-                return self.async_show_form(
-                    step_id="simulate_leak", errors={"base": "suppressed"}
+                return self._menu_message(
+                    "Alerts are suppressed (the Suppress Alerts switch is on). "
+                    "Turn it off first, then retry."
                 )
             if hub.leak_active:
-                return self.async_show_form(
-                    step_id="simulate_leak", errors={"base": "already_leaking"}
+                return self._menu_message(
+                    f"A leak is already active right now — the simulation can't "
+                    f"double-fire. It resolves on its own after ~{hub.quiet_min} "
+                    f"min of quiet; retry once it clears."
                 )
             try:
                 fired = await hub._simulate_leak()
@@ -244,17 +247,29 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
                 _LOGGER.exception("Simulating a leak failed")
                 fired = False
             if not fired:
-                return self.async_show_form(
-                    step_id="simulate_leak", errors={"base": "simulate_failed"}
+                return self._menu_message(
+                    "The simulated flow didn't cross the leak threshold. Check "
+                    "your Quiet threshold / Leak threshold settings, then retry."
                 )
-            return self.async_show_form(
-                step_id="simulate_leak",
-                description_placeholders={
-                    "activity_min": str(int(round(hub.activity))),
-                    "quiet_min": str(hub.quiet_min),
-                },
+            return self._menu_message(
+                f"The simulated flow ran continuously for about "
+                f"{hub.activity:.0f} minutes — past the {hub.limit_min}-minute "
+                f"leak threshold — so the same Leak Detected event and "
+                f"notification real flow triggers were just fired. Expect the "
+                f"alert now; it resolves on its own after ~{hub.quiet_min} min "
+                f"of quiet, and your real meter readings are untouched. Tap to "
+                f"return to the options."
             )
         return self.async_show_menu(step_id="init", menu_options=_OPTIONS_MENU)
+
+    def _menu_message(self, message: str) -> FlowResult:
+        """A single-option menu carrying literal, translation-independent text.
+
+        HA caches this integration's translations in memory and only rebuilds
+        them on a full restart, so form text for a newly shipped step renders
+        blank for existing installs. Dict-form menu options render directly.
+        """
+        return self.async_show_menu(step_id="init", menu_options={"init": message})
 
     async def async_step_form(
         self, user_input: dict[str, Any] | None = None

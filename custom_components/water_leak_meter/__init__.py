@@ -15,6 +15,7 @@ import json
 import logging
 import math
 import time
+from datetime import datetime
 from typing import Any, Callable
 
 from homeassistant.components import persistent_notification
@@ -151,6 +152,8 @@ class WaterLeakHub:
             self.signal_lost,
         )
         self._check_initial_state()
+        if self.leak_active:
+            self._schedule_watchdog()
 
     async def _save(self) -> None:
         await self._store.async_save(
@@ -338,7 +341,6 @@ class WaterLeakHub:
         self.activity = gap_min * math.ceil(self.limit_min / gap_min)
         if self.activity < self.limit_min:
             self.activity = float(self.limit_min)
-        self.last_pulse_ts = None
         self.leak_active = True
         self._schedule_watchdog()
         self._notify_entities()
@@ -409,10 +411,11 @@ class WaterLeakHub:
         self._notify_entities()
 
     @property
-    def last_pulse_iso(self) -> str | None:
+    def last_pulse_dt(self) -> datetime | None:
+        """Timezone-aware last-pulse timestamp; the TIMESTAMP sensor needs a datetime."""
         if self.last_pulse_ts is None:
             return None
-        return dt_util.utc_from_timestamp(self.last_pulse_ts).isoformat()
+        return dt_util.utc_from_timestamp(self.last_pulse_ts)
 
     @property
     def min_detectable_leak_l_day(self) -> float:
