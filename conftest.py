@@ -196,13 +196,53 @@ def _ensure_stubs() -> None:
     _make_pkg("voluptuous")
     import voluptuous as vol
 
+    class _KeySpec:
+        """vol.Required/Optional stand-in that keeps the default visible.
+
+        The real library returns a schema key carrying its default; the flow
+        manager applies defaults during validation. Tests assert on them
+        (``schema.defaults``), so a regression that drops a default fails.
+        """
+
+        __slots__ = ("key", "required", "has_default", "default")
+
+        def __init__(self, key, required, has_default, default) -> None:
+            self.key = key
+            self.required = required
+            self.has_default = has_default
+            self.default = default
+
+        def __eq__(self, other: object) -> bool:
+            if isinstance(other, _KeySpec):
+                return self.key == other.key
+            return self.key == other
+
+        def __hash__(self) -> int:
+            return hash(self.key)
+
+        def __repr__(self) -> str:
+            return f"vol_key({self.key!r})"
+
+    _MISSING = object()
+
     class _SchemaStub:
-        def __init__(self, schema: Any) -> None:
-            self.schema = schema
+        def __init__(self, schema: dict[Any, Any]) -> None:
+            cleaned: dict[Any, Any] = {}
+            defaults: dict[Any, Any] = {}
+            for spec, config in schema.items():
+                cleaned[spec.key] = config
+                if spec.has_default:
+                    defaults[spec.key] = spec.default
+            self.schema = cleaned
+            self.defaults = defaults
 
     vol.Schema = _SchemaStub
-    vol.Required = lambda key, **kw: key
-    vol.Optional = lambda key, **kw: key
+    vol.Required = lambda key, **kw: _KeySpec(
+        key, True, "default" in kw, kw.get("default", _MISSING)
+    )
+    vol.Optional = lambda key, **kw: _KeySpec(
+        key, False, "default" in kw, kw.get("default", _MISSING)
+    )
     vol.Coerce = lambda f: f
     _install_ha_stubs()
     _INSTALLED = True

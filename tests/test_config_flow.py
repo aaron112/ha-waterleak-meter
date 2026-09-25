@@ -8,12 +8,18 @@ from conftest import FakeHass, FakeServices, make_entry
 
 import custom_components.water_leak_meter.config_flow as flow
 from custom_components.water_leak_meter.const import (
+    CONF_LIMIT_MIN,
     CONF_NOTIFY_DATA,
     CONF_NOTIFY_SERVICE,
     CONF_PULSE_FT3,
     CONF_QUIET_MIN,
+    CONF_STALE_MIN,
     CONF_WATER_METER,
+    DEFAULT_LIMIT_MIN,
     DEFAULT_NOTIFY_SERVICE,
+    DEFAULT_PULSE_FT3,
+    DEFAULT_QUIET_MIN,
+    DEFAULT_STALE_MIN,
     DOMAIN,
     TELEGRAM_BOT_SERVICE,
 )
@@ -88,28 +94,43 @@ def test_user_schema_keys_and_selectors():
     assert schema[CONF_PULSE_FT3].config.unit_of_measurement == "ft³"
 
 
+def test_user_schema_defaults():
+    hass = _hass_with({"notify": {"telegram": True}, "telegram_bot": {"send_message": True}})
+    defaults = flow._user_schema(hass).defaults
+    assert defaults[CONF_QUIET_MIN] == DEFAULT_QUIET_MIN
+    assert defaults[CONF_LIMIT_MIN] == DEFAULT_LIMIT_MIN
+    assert defaults[CONF_PULSE_FT3] == DEFAULT_PULSE_FT3
+    assert defaults[CONF_STALE_MIN] == DEFAULT_STALE_MIN
+    assert defaults[CONF_NOTIFY_DATA] == ""
+    assert defaults[CONF_NOTIFY_SERVICE] == DEFAULT_NOTIFY_SERVICE  # telegram preferred
+
+
 def test_option_schema_from_empty_options():
     schema = flow._option_schema(_hass_with({}), {}).schema
     assert CONF_WATER_METER in schema
     assert CONF_NOTIFY_DATA in schema
     assert schema[CONF_QUIET_MIN].config.min == 5
+    defaults = flow._option_schema(_hass_with({}), {}).defaults
+    assert defaults[CONF_NOTIFY_SERVICE] == ""  # user's explicit "off" is preserved
+    assert defaults[CONF_QUIET_MIN] == DEFAULT_QUIET_MIN
 
 
 def test_option_schema_uses_persisted_options():
     hass = _hass_with({"notify": {"telegram": True}})
-    schema = flow._option_schema(
-        hass,
-        {
-            "water_meter": "sensor.water",
-            "quiet_min": "30",
-            "limit_min": "60",
-            "pulse_ft3": "1.5",
-            "stale_min": "0",
-            "notify_service": "notify.telegram",
-        },
-    ).schema
-    assert schema[CONF_QUIET_MIN].config.min == 5  # selector unchanged
-    assert schema[CONF_NOTIFY_SERVICE] is not None
+    options = {
+        "water_meter": "sensor.water",
+        "quiet_min": "30",
+        "limit_min": "60",
+        "pulse_ft3": "1.5",
+        "stale_min": "0",
+        "notify_service": "notify.telegram",
+    }
+    schema = flow._option_schema(hass, options)
+    assert schema.schema[CONF_QUIET_MIN].config.min == 5  # selector unchanged
+    defaults = schema.defaults
+    assert defaults[CONF_WATER_METER] == "sensor.water"
+    assert defaults[CONF_QUIET_MIN] == 30
+    assert defaults[CONF_NOTIFY_SERVICE] == "notify.telegram"  # preserved, not re-enabled
 
 
 # --- _validate --------------------------------------------------------------

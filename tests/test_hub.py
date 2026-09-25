@@ -118,8 +118,9 @@ async def test_async_load_empty(wl):
     assert hub._stale_timer is None
 
 
-async def test_async_load_persisted_state(wl):
+async def test_async_load_persisted_state(wl, clock):
     hub = make_hub()
+    clock.now = 150.0  # last pulse 123 was 27 min ago (< 45 min quiet)
     hub._store.data = {
         "last_value": 100.0,
         "last_pulse_ts": 123.0,
@@ -212,15 +213,46 @@ async def test_check_initial_state_offline_rearms_clock(wl, clock):
     assert hub._stale_timer is not None
 
 
-async def test_check_initial_state_offline_keeps_existing_clock(wl, clock):
+async def test_check_initial_state_offline_keeps_clock_and_rearms(wl, clock):
+    """A mid-outage restart must keep the outage clock and re-arm the stale check."""
     hass = FakeHass()
     hass.states.set("sensor.meter", "unavailable")
-    clock.now = 500.0
+    clock.now = 9100.0  # 150 min into the outage (since = 100 s)
     hub = make_hub(hass=hass)
     hub._store.data = {"unavailable_since": 100.0}
     await hub.async_load()
     assert hub.unavailable_since == 100.0  # preserved, not reset
-    assert hub._stale_timer is None  # no second clock armed
+    assert hub._stale_timer is not None  # re-armed for the remaining 30 min
+    assert timers.last().delay == 30 * 60
+
+
+async def test_check_initial_state_offline_past_deadline_fires(wl, clock):
+    """A restart after the stale window has already expired must alarm promptly."""
+    hass = FakeHass()
+    hass.states.set("sensor.meter", "unavailable")
+    clock.now = 20000.0  # ~331 min after the outage began
+    hub = make_hub(hass=hass)
+    hub._store.data = {"signal_lost": False, "unavailable_since": 100.0}
+    notifications.clear()
+    await hub.async_load()
+    assert hub._stale_timer is not None  # zero-delay timer armed
+    assert timers.last().delay == 0.0
+    await timers.fire_last()
+    assert hub.signal_lost is True
+
+
+async def test_async_load_stale_activity_is_reset(wl, clock):
+    """Quiet since the last pulse: stale activity must not survive a restart."""
+    hub = make_hub()
+    clock.now = 100.0 * 60.0
+    hub._store.data = {
+        "last_value": 100.0,
+        "last_pulse_ts": 0.0,  # pulse was 100 min ago, quiet_min is 45
+        "activity": 55.0,
+    }
+    await hub.async_load()
+    assert hub.activity == 0.0
+    assert hub._store.data["activity"] == 0.0  # persisted, stays reset after reboot
 
 
 # --- tracking -------------------------------------------------------------
@@ -347,6 +379,19 @@ async def test_watchdog_with_no_leak_just_resets_activity(wl, clock):
     assert not notifications  # nothing was leaking to resolve
 
 
+async def test_watchdog_no_leak_persists_activity_reset(wl, clock):
+    hub = make_hub()
+    await hub.async_load()
+    await pump(hub, clock, [(0, 1.0), (40, 2.0), (80, 3.0)])
+    assert hub.activity == 80.0
+    assert hub._store.data["activity"] == 80.0
+    clock.now = 126.0 * 60.0
+    await timers.fire_last()
+    assert hub.activity == 0.0
+    assert hub.leak_active is False
+    assert hub._store.data["activity"] == 0.0  # persisted, no phantom restart
+
+
 async def test_watchdog_stale_token_stands_down(wl, clock):
     hub = make_hub()
     await hub.async_load()
@@ -436,7 +481,7 @@ async def test_signal_loss_disabled_no_timer(wl, clock):
     await hub._on_meter_change(event("unavailable"))
     assert len(timers) == n_timers  # nothing armed when stale_min is 0
     assert not notifications
-    await hub._on_signal_lost(1)
+    await hub._on_signal_lost(0)  # token 0 == current seq, hits the guard below
     assert hub.signal_lost is False  # disabled check exits immediately
 
 
@@ -452,9 +497,12 @@ async def test_signal_check_early_exits(wl, clock):
     # stale token: nothing happens
     await hub._on_signal_lost(99_999)
     assert hub.signal_lost is False
-    # too early: 1 min elapsed < 5 min threshold
+    # too early: 1 min elapsed < 5 min threshold -> reschedules the tail
+    clock.now = 60.0 + 60.0  # 1 min into the outage
     await timers.fire_last()
     assert hub.signal_lost is False
+    assert hub._stale_timer is not None, "too-early check must reschedule"
+    assert timers.handles[-1].delay == 4 * 60
     assert not notifications
 
 
@@ -462,11 +510,11 @@ async def test_signal_already_lost_or_unset_returns(wl, clock):
     hub = make_hub(stale_min=5)
     await hub.async_load()
     # no unavailable window at all -> returns without firing
-    await hub._on_signal_lost(hub._stale_seq if hub._stale_seq else 1)
+    await hub._on_signal_lost(0)  # token 0 == current seq
     assert hub.signal_lost is False
     # already lost -> returns without re-firing
     hub.signal_lost = True
-    await hub._on_signal_lost(1)
+    await hub._on_signal_lost(0)
     assert hub.signal_lost is True
 
 

@@ -154,6 +154,19 @@ class WaterLeakHub:
         self._check_initial_state()
         if self.leak_active:
             self._schedule_watchdog()
+        if (
+            self.last_value is not None
+            and self.last_pulse_ts is not None
+            and not self.leak_active
+            and self.activity > 0.0
+            and (time.time() - self.last_pulse_ts) / 60.0 >= self.quiet_min
+        ):
+            # The meter has been quiet since its last pulse: stale accumulated
+            # activity must not resurrect phantom sensor minutes after a
+            # restart. Persist the reset so it does not come back on the next
+            # boot either.
+            self.activity = 0.0
+            await self._save()
 
     async def _save(self) -> None:
         await self._store.async_save(
@@ -178,7 +191,18 @@ class WaterLeakHub:
         if state is None:
             return
         if not _is_number(state.state):
-            self._on_unavailable(time.time())
+            if self.unavailable_since is None:
+                self._on_unavailable(time.time())
+            else:
+                # Mid-outage restart: keep the original clock start and re-arm
+                # the stale check for the remaining time, so a still-dead meter
+                # still trips EVENT_SIGNAL_LOST at the real stale deadline.
+                self._schedule_stale_check(
+                    max(
+                        0.0,
+                        self.stale_min * 60 - (time.time() - self.unavailable_since),
+                    )
+                )
         elif self.signal_lost:
             asyncio.create_task(self._on_available())
 
@@ -237,6 +261,7 @@ class WaterLeakHub:
             return
         self._timer = None
         was_leak = self.leak_active
+        had_activity = self.activity > 0.0
         self.activity = 0.0
         if was_leak:
             self.leak_active = False
@@ -247,6 +272,10 @@ class WaterLeakHub:
                 self._notify_entities()
                 return
             await self._send_resolved()
+        elif had_activity:
+            # Persist the quiet reset so stale activity cannot resurrect
+            # phantom minutes if HA restarts before the next pulse.
+            await self._save()
         self._notify_entities()
 
     def _on_unavailable(self, now: float) -> None:
@@ -255,20 +284,22 @@ class WaterLeakHub:
             self.unavailable_since = now
             self._schedule_stale_check()
 
-    def _schedule_stale_check(self) -> None:
+    def _schedule_stale_check(self, delay: float | None = None) -> None:
         if self._stale_timer:
             self._stale_timer()
         if self.stale_min <= 0:
             return
+        if delay is None:
+            delay = self.stale_min * 60
+        else:
+            delay = max(0.0, delay)
         self._stale_seq += 1
         seq = self._stale_seq
 
         async def _check(_now: Any, token: int = seq) -> None:
             await self._on_signal_lost(token)
 
-        self._stale_timer = async_call_later(
-            self.hass, self.stale_min * 60, _check
-        )
+        self._stale_timer = async_call_later(self.hass, delay, _check)
 
     def _cancel_stale_timer(self) -> None:
         if self._stale_timer:
@@ -289,12 +320,14 @@ class WaterLeakHub:
         if token != self._stale_seq:
             return
         self._stale_timer = None
-        if (
-            self.stale_min <= 0
-            or self.signal_lost
-            or self.unavailable_since is None
-            or (time.time() - self.unavailable_since) / 60.0 < self.stale_min
-        ):
+        if self.stale_min <= 0 or self.signal_lost or self.unavailable_since is None:
+            return
+        elapsed = time.time() - self.unavailable_since
+        if elapsed / 60.0 < self.stale_min:
+            # Fired early (clock jumped, or a boot re-arm): reschedule for the
+            # tail so the alarm still lands at the real stale deadline instead
+            # of standing down forever.
+            self._schedule_stale_check(self.stale_min * 60 - elapsed)
             return
         self.signal_lost = True
         await self._save()
