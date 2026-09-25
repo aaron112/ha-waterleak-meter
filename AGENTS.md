@@ -18,8 +18,12 @@ python3 -m venv .venv
 
 - Do not skip the suite "because the change is trivial" — run it regardless.
 - Fix any failure the change causes before committing.
-- Coverage is configured in `pyproject.toml` (100% is the current bar); do
-  not commit changes that drop it.
+- Before committing, always ensure test coverage stays at 100%: rerun the
+  suite with `--cov` and confirm the report shows no missing statements or
+  branches. Do not commit changes that drop coverage below 100%.
+- When making changes, always update and/or add unit tests as appropriate so
+  the integration's behavior stays covered; a change to production code
+  without a matching test change is not ready to commit.
 - Do not commit `.venv/`, `.pytest_cache/`, `.coverage`, or `htmlcov/` (all
   gitignored).
 
@@ -27,7 +31,8 @@ python3 -m venv .venv
 
 - Small, single-purpose commits. Bump `manifest.json` and tag a release
   separately from feature work.
-- Keep tests green: adding behavior means adding/updating tests.
+- Keep tests green: adding behavior means adding/updating tests. Any change
+  to production code ships with its tests in the same commit.
 - Don't use emojis in code.
 
 ## Facts for agents
