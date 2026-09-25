@@ -169,6 +169,9 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return WaterLeakOptionsFlowHandler(config_entry)
 
 
+_OPTIONS_MENU: list[str] = ["form", "send_test"]
+
+
 class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
     """Options flow allowing edits from the UI."""
 
@@ -178,10 +181,15 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        return self.async_show_menu(step_id="init", menu_options=_OPTIONS_MENU)
+
+    async def async_step_form(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if user_input is not None:
             if error := await _validate(self.hass, user_input):
                 return self.async_show_form(
-                    step_id="init",
+                    step_id="form",
                     data_schema=_option_schema(self.hass, self._entry.options),
                     errors={
                         CONF_NOTIFY_DATA
@@ -192,8 +200,33 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
-            step_id="init", data_schema=_option_schema(self.hass, self._entry.options)
+            step_id="form", data_schema=_option_schema(self.hass, self._entry.options)
         )
+
+    async def async_step_send_test(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is None:
+            hub = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+            if hub is None:
+                return self.async_show_form(
+                    step_id="send_test", errors={"base": "hub_unavailable"}
+                )
+            if not hub.notify_service:
+                return self.async_show_form(
+                    step_id="send_test", errors={"base": "no_notify_service"}
+                )
+            await hub._notify(
+                "Test notification",
+                "This is a test message from the Water Leak Detection for "
+                "Meters integration.",
+                "water_leak_test",
+            )
+            return self.async_show_form(
+                step_id="send_test",
+                description_placeholders={"notify": hub.notify_service},
+            )
+        return self.async_show_menu(step_id="init", menu_options=_OPTIONS_MENU)
 
 
 def _option_schema(hass: HomeAssistant, options: dict[str, Any]) -> vol.Schema:

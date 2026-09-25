@@ -33,8 +33,15 @@
     }
   },
   "options": {
+    "menu_options": {
+      "form": "Configure",
+      "send_test": "Send test notification"
+    },
     "step": {
       "init": {
+        "title": "Water Leak Detection for Meters options"
+      },
+      "form": {
         "title": "Water Leak Detection for Meters options",
         "description": "Adjust detection thresholds, the meter pulse size, or swap the meter / notification service.",
         "data": {
@@ -55,11 +62,20 @@
           "notify_service": "Service that receives the alert, or clear it to disable notifications — alerts still show on the Leak Detected sensor.",
           "notify_data": "Optional JSON merged into every notification call, e.g. {\"chat_id\": \"123456\"} for Telegram."
         }
+      },
+      "send_test": {
+        "title": "Send test notification",
+        "description": "A test message was sent through {notify}. If it does not arrive, a Home Assistant notification was created instead.",
+        "description_placeholders": {
+          "notify": "the configured notification service"
+        }
       }
     },
     "error": {
       "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
-      "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}."
+      "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}.",
+      "hub_unavailable": "The integration is not loaded right now, try again shortly.",
+      "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off)."
     }
   }
 }
