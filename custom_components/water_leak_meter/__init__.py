@@ -317,6 +317,41 @@ class WaterLeakHub:
             "water_leak_resolved",
         )
 
+    async def _simulate_leak(self, gap_min: float | None = None) -> bool:
+        """Drive synthetic readings so a leak fires on demand.
+
+        Replays fake pulses spaced just under `quiet_min` apart in backdated
+        time, so the activity counter crosses `limit_min` immediately — same
+        Leak Detected event, alert and quiet-watchdog (which then resolves it
+        on its own) as real flow. Runs as a fresh flow episode, so a recent
+        real pulse can't skew the synthetic gaps; the meter's own cumulative
+        value is left untouched.
+        Returns True if a leak fired; False if already leaking or suppressed.
+        """
+        if self.leak_active or self.suppressed:
+            return False
+        if gap_min is None:
+            gap_min = self.quiet_min / 2.0
+        pulses = int(self.limit_min // gap_min) + 2
+        now = time.time()
+        self.activity = 0.0
+        self.last_pulse_ts = None
+        for i in range(1, pulses + 1):
+            sim_now = now - (pulses - i) * gap_min * 60.0
+            if self.last_pulse_ts is None:
+                self.activity = 0.0
+            else:
+                self.activity += (sim_now - self.last_pulse_ts) / 60.0
+            self.last_pulse_ts = sim_now
+            self._schedule_watchdog()
+            self._notify_entities()
+            if self.activity >= self.limit_min:
+                self.leak_active = True
+                await self._save()
+                await self._send_alert()
+                return True
+        return False
+
     async def _send_signal_lost(self) -> None:
         self.hass.bus.async_fire(
             EVENT_SIGNAL_LOST,

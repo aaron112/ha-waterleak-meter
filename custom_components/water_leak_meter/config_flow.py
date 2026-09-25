@@ -196,7 +196,7 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return WaterLeakOptionsFlowHandler(config_entry)
 
 
-_OPTIONS_MENU: list[str] = ["form", "send_test"]
+_OPTIONS_MENU: list[str] = ["form", "send_test", "simulate_leak"]
 
 
 class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
@@ -208,6 +208,36 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        return self.async_show_menu(step_id="init", menu_options=_OPTIONS_MENU)
+
+    async def async_step_simulate_leak(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is None:
+            hub = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+            if hub is None:
+                return self.async_show_form(
+                    step_id="simulate_leak", errors={"base": "hub_unavailable"}
+                )
+            if hub.suppressed:
+                return self.async_show_form(
+                    step_id="simulate_leak", errors={"base": "suppressed"}
+                )
+            if hub.leak_active:
+                return self.async_show_form(
+                    step_id="simulate_leak", errors={"base": "already_leaking"}
+                )
+            if not await hub._simulate_leak():
+                return self.async_show_form(
+                    step_id="simulate_leak", errors={"base": "simulate_failed"}
+                )
+            return self.async_show_form(
+                step_id="simulate_leak",
+                description_placeholders={
+                    "activity_min": str(int(round(hub.activity))),
+                    "quiet_min": str(hub.quiet_min),
+                },
+            )
         return self.async_show_menu(step_id="init", menu_options=_OPTIONS_MENU)
 
     async def async_step_form(

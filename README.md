@@ -37,8 +37,10 @@ false alarms.
   to disable (a failed send falls back to a persistent notification).
   Optionally add extra per-service data as JSON — e.g. `{"chat_id": "123456"}`
   to target a Telegram channel — merged into every notification call. A *Send
-  test notification* action is available from the integration's options
-  screen to verify it all works
+  test notification* action verifies the notify path, and a **Simulate a leak**
+  action replays synthetic meter pulses through the detector so it fires a
+  real Leak Detected alert (and later a Resolved alert) on demand — without
+  any actual flow — from the integration's options screen
 - Fires `water_leak_detected` / `water_leak_resolved` events for your own
   automations
 - Alerts you when the meter stops reporting — signal-loss timeout is
