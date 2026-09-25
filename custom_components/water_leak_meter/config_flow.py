@@ -51,10 +51,20 @@ def _number_selector(
     )
 
 
+_AMBIGUOUS_NOTIFY = ("notify", "send_message")
+
+
 def _notify_services(hass: HomeAssistant) -> list[str]:
-    """Return the instance's notify services as 'notify.<name>' labels."""
+    """Return the instance's notify services as 'notify.<name>' labels.
+
+    `notify.notify` is only an alias HA routes to the first notification
+    service it finds, and `notify.send_message` requires an entity target —
+    neither delivers through a bare title/message call, so skip both.
+    """
     services = hass.services.async_services().get("notify", {})
-    return sorted(f"notify.{name}" for name in services)
+    return sorted(
+        f"notify.{name}" for name in services if name not in _AMBIGUOUS_NOTIFY
+    )
 
 
 def _notify_default(hass: HomeAssistant, current: str | None = None) -> str:
@@ -215,6 +225,10 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
             if not hub.notify_service:
                 return self.async_show_form(
                     step_id="send_test", errors={"base": "no_notify_service"}
+                )
+            if hub.notify_service.split(".", 1)[1] in _AMBIGUOUS_NOTIFY:
+                return self.async_show_form(
+                    step_id="send_test", errors={"base": "notify_ambiguous"}
                 )
             await hub._notify(
                 "Test notification",

@@ -33,13 +33,13 @@
     }
   },
   "options": {
-    "menu_options": {
-      "form": "Configure",
-      "send_test": "Send test notification"
-    },
     "step": {
       "init": {
-        "title": "Water Leak Detection for Meters options"
+        "title": "Water Leak Detection for Meters options",
+        "menu_options": {
+          "form": "Configure",
+          "send_test": "Send test notification"
+        }
       },
       "form": {
         "title": "Water Leak Detection for Meters options",
@@ -75,7 +75,8 @@
       "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
       "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}.",
       "hub_unavailable": "The integration is not loaded right now, try again shortly.",
-      "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off)."
+      "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off).",
+      "notify_ambiguous": "`notify.notify` is only an alias Home Assistant routes to the first notification service it finds, so it can silently deliver nothing. Choose a real service — e.g. notify.telegram, a notify.group, or your mobile device."
     }
   }
 }
