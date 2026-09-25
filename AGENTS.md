@@ -44,7 +44,8 @@ stubbed HA surface, and untested behavior.
   separately from feature work.
 - Keep tests green: adding behavior means adding/updating tests. Any change
   to production code ships with its tests in the same commit.
-- Don't use emojis in code.
+- Don't use emojis in code — except in user-facing notification text, which is
+  emoji-prefixed by design (one per alert kind) so messages are scannable.
 
 ## Facts for agents
 

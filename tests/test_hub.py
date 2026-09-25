@@ -200,7 +200,7 @@ async def test_check_initial_state_recovers_signal(wl):
     await asyncio.sleep(0)
     assert hub.signal_lost is False
     assert hub.unavailable_since is None
-    assert last_notify_data(hub)["title"] == "Water meter signal restored"
+    assert last_notify_data(hub)["title"] == "📶 Water meter signal restored"
 
 
 async def test_check_initial_state_offline_rearms_clock(wl, clock):
@@ -335,7 +335,7 @@ async def test_leak_fires_when_limit_crossed(wl, clock):
     assert hub.leak_active is True
     assert hub._store.data["leak_active"] is True
     assert hub.hass.bus.fired[-1] == (wl.EVENT_LEAK_DETECTED, {"activity_min": 120.0})
-    assert last_notify_data(hub)["title"] == "Water leak detected"
+    assert last_notify_data(hub)["title"] == "💧 Water leak detected"
     assert "120" in last_notify_data(hub)["message"]
 
 
@@ -363,7 +363,7 @@ async def test_watchdog_resolves_normal_leak(wl, clock):
     assert hub.activity == 0.0
     assert hub._timer is None
     assert hub.hass.bus.fired[-1] == (wl.EVENT_LEAK_RESOLVED, None)
-    assert last_notify_data(hub)["title"] == "Water leak resolved"
+    assert last_notify_data(hub)["title"] == "✅ Water leak resolved"
 
 
 async def test_watchdog_with_no_leak_just_resets_activity(wl, clock):
@@ -459,7 +459,7 @@ async def test_signal_loss_alert_and_recovery(wl, clock):
         wl.EVENT_SIGNAL_LOST,
         {"water_meter": "sensor.meter", "stale_min": 180},
     )
-    assert last_notify_data(hub)["title"] == "Water meter signal lost"
+    assert last_notify_data(hub)["title"] == "📡 Water meter signal lost"
 
     clock.now = 60.0 + 180.0 * 60.0 + 60.0
     await hub._on_meter_change(event(2.0))
@@ -467,7 +467,7 @@ async def test_signal_loss_alert_and_recovery(wl, clock):
     assert hub.unavailable_since is None
     assert hub._stale_timer is None
     assert hub.hass.bus.fired[-1] == (wl.EVENT_SIGNAL_RESTORED, None)
-    assert last_notify_data(hub)["title"] == "Water meter signal restored"
+    assert last_notify_data(hub)["title"] == "📶 Water meter signal restored"
 
 
 async def test_signal_loss_disabled_no_timer(wl, clock):
@@ -552,6 +552,40 @@ async def test_notify_unknown_domain_warns(wl, caplog):
     assert "Invalid notify service" in caplog.text
 
 
+async def test_notifications_use_the_entity_display_name(wl):
+    """Alerts should name the meter, not print its entity id."""
+    hub = make_hub()
+    await hub.async_load()
+    hub.hass.states.set("sensor.meter", "100", name="Basement Water Meter")
+    assert hub.meter_display_name == "Basement Water Meter"
+    await hub._send_alert()
+    await hub._send_resolved()
+    await hub._send_signal_lost()
+    await hub._send_signal_restored()
+    payloads = [c[2] for c in hub.hass.services.calls]
+    titles = [p["title"] for p in payloads]
+    assert titles == [
+        "💧 Water leak detected",
+        "✅ Water leak resolved",
+        "📡 Water meter signal lost",
+        "📶 Water meter signal restored",
+    ]
+    for payload in payloads:
+        assert "Basement Water Meter" in payload["message"], payload
+        assert "sensor.meter" not in payload["message"], payload
+    assert any("💧" in p["message"] for p in payloads)
+    assert any("✅" in p["message"] for p in payloads)
+    assert any("📡" in p["message"] for p in payloads)
+    assert any("📶" in p["message"] for p in payloads)
+
+
+async def test_display_name_falls_back_to_entity_id(wl):
+    hub = make_hub()
+    await hub.async_load()
+    assert hub.hass.states.get("sensor.meter") is None
+    assert hub.meter_display_name == "sensor.meter"
+
+
 async def test_notify_calls_service(wl):
     hub = make_hub(notify_service="notify.telegram")
     await hub._notify("Water leak detected", "msg", "water_leak_alert")
@@ -634,7 +668,7 @@ async def test_simulate_leak_default_gap(wl):
     assert hub.leak_active is True
     assert hub.activity == 15.0  # gap 2.5 min * ceil(15/2.5) = 15.0
     assert hub.hass.bus.fired[-1] == (wl.EVENT_LEAK_DETECTED, {"activity_min": 15.0})
-    assert last_notify_data(hub)["title"] == "Water leak detected"
+    assert last_notify_data(hub)["title"] == "💧 Water leak detected"
     assert len(timers) == 1  # one quiet watchdog
     assert hub._timer is not None
 
@@ -786,8 +820,8 @@ async def test_send_signal_lost_and_restored_events(wl):
 async def test_resolved_and_signal_messages_are_named(wl):
     hub = make_hub()
     await hub._send_alert()
-    assert last_notify_data(hub)["title"] == "Water leak detected"
+    assert last_notify_data(hub)["title"] == "💧 Water leak detected"
     await hub._send_resolved()
-    assert last_notify_data(hub)["title"] == "Water leak resolved"
+    assert last_notify_data(hub)["title"] == "✅ Water leak resolved"
     await hub._send_signal_lost()
     assert "signal lost" in last_notify_data(hub)["title"].lower()

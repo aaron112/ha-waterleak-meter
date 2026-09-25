@@ -310,9 +310,9 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
                     step_id="send_test", errors={"base": "notify_ambiguous"}
                 )
             await hub._notify(
-                "Test notification",
-                "This is a test message from the Water Leak Detection for "
-                "Meters integration.",
+                "🧪 Test notification",
+                "🧪 This is a test message from the Water Leak Detection for "
+                f"Meters integration. It is watching {hub.meter_display_name}.",
                 "water_leak_test",
             )
             return self.async_show_form(

@@ -334,22 +334,33 @@ class WaterLeakHub:
         await self._send_signal_lost()
         self._notify_entities()
 
+    @property
+    def meter_display_name(self) -> str:
+        """The meter's friendly name, e.g. "Basement Water Meter".
+
+        Alerts read far better with a name than with `sensor.water_meter`, and
+        the entity id is only a fallback for when the state is not loaded.
+        """
+        state = self.hass.states.get(self.water_meter)
+        name = getattr(state, "name", None) if state is not None else None
+        return name or self.water_meter
+
     async def _send_alert(self) -> None:
         self.hass.bus.async_fire(EVENT_LEAK_DETECTED, {"activity_min": self.activity})
         await self._notify(
-            "Water leak detected",
-            f"Water has been flowing nearly non-stop for over "
-            f"{self.activity:.0f} minutes. Check toilets, dishwasher, washing "
-            f"machine, water heater and outdoor taps!",
+            "💧 Water leak detected",
+            f"💧 {self.meter_display_name} has been flowing nearly non-stop "
+            f"for over {self.activity:.0f} minutes. Check toilets, dishwasher, "
+            "washing machine, water heater and outdoor taps!",
             "water_leak_alert",
         )
 
     async def _send_resolved(self) -> None:
         self.hass.bus.async_fire(EVENT_LEAK_RESOLVED)
         await self._notify(
-            "Water leak resolved",
-            f"No water flow for over {self.quiet_min} minutes. "
-            f"Leak assumed resolved.",
+            "✅ Water leak resolved",
+            f"✅ No water flow on {self.meter_display_name} for over "
+            f"{self.quiet_min} minutes. Leak assumed resolved.",
             "water_leak_resolved",
         )
 
@@ -393,18 +404,18 @@ class WaterLeakHub:
             {"water_meter": self.water_meter, "stale_min": self.stale_min},
         )
         await self._notify(
-            "Water meter signal lost",
-            f"No reading from {self.water_meter} for over {self.stale_min} "
-            f"minutes. Check the bridge/receiver power and range, then reset "
-            f"the integration if it stays down.",
+            "📡 Water meter signal lost",
+            f"📡 No reading from {self.meter_display_name} for over "
+            f"{self.stale_min} minutes. Check the bridge/receiver power and "
+            "range, then reset the integration if it stays down.",
             "water_leak_signal_lost",
         )
 
     async def _send_signal_restored(self) -> None:
         self.hass.bus.async_fire(EVENT_SIGNAL_RESTORED)
         await self._notify(
-            "Water meter signal restored",
-            f"{self.water_meter} is reporting again.",
+            "📶 Water meter signal restored",
+            f"📶 {self.meter_display_name} is reporting again.",
             "water_leak_signal_restored",
         )
 

@@ -333,16 +333,19 @@ _pn.async_create = _notify_fallback
 
 # --- fakes for tests to wire into the hub / flows ---
 class FakeState:
-    def __init__(self, state: str) -> None:
+    def __init__(self, state: str, name: str | None = None) -> None:
         self.state = state
+        # Real HA State objects carry the friendly name; notifications use it
+        # in place of the entity id.
+        self.name = name
 
 
 class StateRegistry:
     def __init__(self) -> None:
         self._states: dict[str, FakeState] = {}
 
-    def set(self, entity_id: str, state: str | None) -> None:
-        self._states[entity_id] = FakeState(state)
+    def set(self, entity_id: str, state: str | None, name: str | None = None) -> None:
+        self._states[entity_id] = FakeState(state, name)
 
     def get(self, entity_id: str) -> FakeState | None:
         return self._states.get(entity_id)

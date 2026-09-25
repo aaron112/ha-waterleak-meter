@@ -337,9 +337,10 @@ class _TestHub:
     def __init__(self, notify_service, sent=None):
         self.notify_service = notify_service
         self.sent = sent if sent is not None else []
+        self.meter_display_name = "Basement Water Meter"
 
     async def _notify(self, title, message, notification_id):
-        self.sent.append((notification_id, title))
+        self.sent.append((notification_id, title, message))
 
 
 async def test_send_test_happy_path():
@@ -349,7 +350,11 @@ async def test_send_test_happy_path():
     res = await h.async_step_send_test(None)
     assert res["type"] == "form"
     assert res["description_placeholders"] == {"notify": "notify.telegram"}
-    assert sent == [("water_leak_test", "Test notification")]
+    assert len(sent) == 1
+    notification_id, title, message = sent[0]
+    assert notification_id == "water_leak_test"
+    assert title == "🧪 Test notification"
+    assert "Basement Water Meter" in message
 
 
 async def test_send_test_telegram_bot_path():
@@ -358,7 +363,11 @@ async def test_send_test_telegram_bot_path():
     h.hass.data[DOMAIN] = {"e1": _TestHub("telegram_bot.send_message", sent)}
     res = await h.async_step_send_test(None)
     assert res["description_placeholders"] == {"notify": "telegram_bot.send_message"}
-    assert sent == [("water_leak_test", "Test notification")]
+    assert len(sent) == 1
+    notification_id, title, message = sent[0]
+    assert notification_id == "water_leak_test"
+    assert title == "🧪 Test notification"
+    assert "Basement Water Meter" in message
 
 
 async def test_send_test_hub_missing():
