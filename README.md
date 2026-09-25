@@ -24,10 +24,10 @@ false alarms.
 
 - Fully configured from the UI (Integration → Add integration → Water Leak Detector)
 - Entities:
-  - `binary_sensor.water_leak_detected` — problem sensor (leak active)
-  - `sensor.water_leak_continuous_activity` (min) — accumulated continuous flow
-  - `sensor.water_leak_last_pulse` (timestamp) — last meter increment
-  - `switch.water_leak_suppress_alerts` — silence overnight/garden/pool use
+  - `binary_sensor.water_leak_detector_leak_detected` — problem sensor (leak active)
+  - `sensor.water_leak_detector_continuous_activity` (min) — accumulated continuous flow
+  - `sensor.water_leak_detector_last_pulse` (timestamp) — last meter increment
+  - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool use
 - Sends notifications through any `notify.*` service (e.g. `notify.telegram`),
   fallback to a persistent notification
 - Fires `water_leak_detected` / `water_leak_resolved` events for your own

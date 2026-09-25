@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any, Callable
 
@@ -58,17 +59,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload_entry(entry, entry)
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _is_number(value: str | None) -> bool:
     if value is None:
         return False
     try:
-        float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return False
-    return True
+    return math.isfinite(result)
 
 
 class WaterLeakHub:
@@ -92,6 +93,7 @@ class WaterLeakHub:
 
         self._store = Store(self.hass, STORAGE_VERSION, f"{STORAGE_KEY}.{entry.entry_id}")
         self._timer: Callable[[], None] | None = None
+        self._watchdog_seq: int = 0
         self._unsub_track: Callable[[], None] | None = None
         self._entities: list[Any] = []
 
@@ -161,9 +163,19 @@ class WaterLeakHub:
     def _schedule_watchdog(self) -> None:
         if self._timer:
             self._timer()
-        self._timer = async_call_later(self.hass, self.quiet_min * 60, self._on_quiet)
+        self._watchdog_seq += 1
+        seq = self._watchdog_seq
 
-    async def _on_quiet(self, *_args: Any) -> None:
+        async def _watchdog(_now: Any, token: int = seq) -> None:
+            await self._on_quiet(token)
+
+        self._timer = async_call_later(self.hass, self.quiet_min * 60, _watchdog)
+
+    async def _on_quiet(self, token: int) -> None:
+        # A stale firing (already-queued timer that raced a new pulse) must
+        # stand down so it cannot clear a freshly scheduled watchdog.
+        if token != self._watchdog_seq:
+            return
         self._timer = None
         was_leak = self.leak_active
         self.activity = 0.0
