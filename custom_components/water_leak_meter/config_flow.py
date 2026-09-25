@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -36,6 +37,8 @@ from .const import (
     STALE_MIN_MIN,
     TELEGRAM_BOT_SERVICE,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _number_selector(
@@ -196,7 +199,15 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return WaterLeakOptionsFlowHandler(config_entry)
 
 
-_OPTIONS_MENU: list[str] = ["form", "send_test", "simulate_leak"]
+# Literal labels, not translation keys: HA caches this integration's
+# translations in memory and only rebuilds them on a full restart, so a
+# newly added menu entry would otherwise render blank with stale strings.
+# The frontend renders dict-form menu_options' values directly.
+_OPTIONS_MENU: dict[str, str] = {
+    "form": "Configure",
+    "send_test": "Send test notification",
+    "simulate_leak": "Simulate a leak",
+}
 
 
 class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
@@ -227,7 +238,12 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="simulate_leak", errors={"base": "already_leaking"}
                 )
-            if not await hub._simulate_leak():
+            try:
+                fired = await hub._simulate_leak()
+            except Exception:
+                _LOGGER.exception("Simulating a leak failed")
+                fired = False
+            if not fired:
                 return self.async_show_form(
                     step_id="simulate_leak", errors={"base": "simulate_failed"}
                 )
