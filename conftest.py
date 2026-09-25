@@ -375,6 +375,10 @@ class ConfigEntries:
         self.unloaded: list[Any] = []
         self.reloaded: list[str] = []
         self.update_listeners: list[Callable[[Any, Any], Any]] = []
+        self.entries: list[Any] = []
+
+    def async_entries(self, domain: str | None = None) -> list[Any]:
+        return list(self.entries)
 
     async def async_forward_entry_setups(self, entry: Any, platforms: list[str]) -> None:
         self.forwarded.append((entry, platforms))

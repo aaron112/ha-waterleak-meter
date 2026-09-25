@@ -36,7 +36,10 @@ false alarms.
   via `telegram_bot.send_message` (no notify layer needed); clear the field
   to disable (a failed send falls back to a persistent notification).
   Optionally add extra per-service data as JSON — e.g. `{"chat_id": "123456"}`
-  to target a Telegram channel — merged into every notification call. Alerts
+  for a `notify.*` service, or the Telegram recipient for
+  `telegram_bot.send_message`, which was `target` up to Home Assistant 2025.x
+  and is `chat_id` from 2026.2 on (use whichever your core documents) —
+  merged into every notification call. Alerts
   carry an emoji per kind (💧 detected, ✅ resolved, 📡 signal lost,
   📶 signal restored, 🧪 test) and name the meter by its display name rather
   than its entity id. A *Send

@@ -81,6 +81,49 @@ def _is_number(value: str | None) -> bool:
     return math.isfinite(result)
 
 
+def _to_int(value: Any, default: int) -> int:
+    """Coerce a stored option to int; any malformed value falls back to default.
+
+    Options normally come from the config flow, but a hand-edited or legacy
+    storage file can carry Os, strings, or nonsense that must not crash the
+    entry load. Non-finite floats (inf/nan) are rejected too: rounding them
+    raises OverflowError, and they are meaningless as a threshold.
+    """
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(result):
+        return default
+    return int(round(result))
+
+
+def _to_float(value: Any, default: float) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(result):
+        return default
+    return result
+
+
+def _to_text(value: Any) -> str:
+    """Coerce an option to a stripped string; non-strings become empty."""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _clamp(value: int | float, low: int | float, high: int | float) -> int | float:
+    """Constrain a recovered option to the range its config-flow selector allows.
+
+    A legacy or hand-edited value outside the selector's bounds would be
+    rejected by voluptuous on submit (defaults are validated like any other
+    input), leaving the user unable to save the form, and an unbounded delay
+    can overflow the event loop's timer.
+    """
+    return min(max(value, low), high)
+
+
 def _parse_notify_data(raw: str | None) -> dict[str, Any]:
     """Parse the configured notify extra-data JSON; {} if empty/invalid."""
     if not raw:
@@ -88,10 +131,14 @@ def _parse_notify_data(raw: str | None) -> dict[str, Any]:
     try:
         obj = json.loads(raw)
     except (TypeError, ValueError):
-        _LOGGER.warning("Invalid notify_data JSON, ignoring: %s", raw)
+        # Never log the raw text: notify_data can carry tokens or webhook
+        # credentials, and a malformed paste would leak them into the log.
+        _LOGGER.warning("Invalid notify_data JSON (%d chars), ignoring", len(raw))
         return {}
     if not isinstance(obj, dict):
-        _LOGGER.warning("notify_data must be a JSON object, ignoring: %s", raw)
+        _LOGGER.warning(
+            "notify_data must be a JSON object (%d chars), ignoring", len(raw)
+        )
         return {}
     return obj
 

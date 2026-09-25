@@ -20,7 +20,7 @@
           "pulse_ft3": "Volume per meter pulse. Check the meter's label (e.g. \"2 ft³ per pulse\"). Controls the smallest leak the cadence method can report.",
           "stale_min": "Alert if no reading arrives for this long — your bridge/receiver has likely lost signal. 0 turns the check off. Default 180 min (3 h).",
           "notify_service": "Service that receives the alert: a notify. service (e.g. notify.telegram), or telegram_bot.send_message to send straight through a Telegram bot. Pick one from the list, or clear it to turn notifications off — alerts still show on the Leak Detected sensor.",
-          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram. For telegram_bot.send_message it's Telegram fields, e.g. {\"chat_id\": \"123456\"}. Leave empty for the default recipient."
+          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram. For telegram_bot.send_message it's Telegram fields, and the recipient field was \"target\" up to Home Assistant 2025.x but is called \"chat_id\" from 2026.2 on — use whichever your core documents, e.g. {\"target\": \"123456\"}."
         }
       }
     },
@@ -56,7 +56,7 @@
           "pulse_ft3": "Volume per meter pulse (check the meter's label). Controls the smallest leak the cadence method can report.",
           "stale_min": "Alert if no reading arrives for this long (bridge/receiver signal loss). 0 turns the check off.",
           "notify_service": "Service that receives the alert (notify.telegram, telegram_bot.send_message, …), or clear it to disable notifications — alerts still show on the Leak Detected sensor.",
-          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram; for telegram_bot.send_message it's Telegram fields like {\"chat_id\": \"123456\"}, {\"parse_mode\": \"markdown\"}."
+          "notify_data": "Optional JSON merged into every notification call. For a notify. service this is extra provider data, e.g. {\"chat_id\": \"123456\"} for Telegram; for telegram_bot.send_message it's Telegram fields, and the recipient field was \"target\" up to Home Assistant 2025.x but is called \"chat_id\" from 2026.2 on — use whichever your core documents, e.g. {\"target\": \"123456\"} or {\"parse_mode\": \"markdown\"}."
         }
       },
       "send_test": {
@@ -73,6 +73,9 @@
       "hub_unavailable": "The integration is not loaded right now, try again shortly.",
       "no_notify_service": "No notification service is set. Pick one under Configure first (empty turns notifications off).",
       "notify_ambiguous": "`notify.notify` is only an alias Home Assistant routes to the first notification service it finds, so it can silently deliver nothing. Choose a real service — e.g. notify.telegram, a notify.group, or your mobile device."
+    },
+    "abort": {
+      "already_configured": "Another Water Leak Detection for Meters configuration already uses this meter."
     }
   }
 }

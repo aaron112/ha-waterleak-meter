@@ -98,6 +98,45 @@ def test_last_pulse_dt(wl):
     assert dt.year == 2023  # 2023-11-14
 
 
+def test_option_coercion_helpers_fall_back_on_junk(wl):
+    """Every malformed value must land on the default, never raise."""
+    assert wl._to_int("30", 45) == 30
+    assert wl._to_int("30.6", 45) == 31  # round, not truncate
+    assert wl._to_int(None, 45) == 45
+    assert wl._to_int("abc", 45) == 45
+    assert wl._to_int("", 45) == 45
+    assert wl._to_int(float("inf"), 45) == 45
+    assert wl._to_int(float("nan"), 45) == 45
+    assert wl._to_int(10**1000, 45) == 45  # OverflowError from float()
+    assert wl._to_float("1.5", 2.0) == 1.5
+    assert wl._to_float(float("inf"), 2.0) == 2.0
+    assert wl._to_float(float("nan"), 2.0) == 2.0
+    assert wl._to_float(10**1000, 2.0) == 2.0
+    assert wl._to_text(" notify.telegram ") == "notify.telegram"
+    assert wl._to_text(None) == ""
+    assert wl._to_text(1) == ""
+    assert wl._clamp(5, 1, 10) == 5
+    assert wl._clamp(0, 1, 10) == 1
+    assert wl._clamp(99, 1, 10) == 10
+
+
+def test_invalid_notify_json_is_not_logged_verbatim(wl, caplog):
+    """notify_data can carry tokens; a malformed paste must not reach the log."""
+    secret = '{"token": "s3cr3t-value", oops'
+    hub = make_hub(notify_data=secret)
+    assert hub.notify_data == {}
+    assert "s3cr3t-value" not in caplog.text
+    assert "Invalid notify_data JSON" in caplog.text
+
+
+def test_non_object_notify_json_is_not_logged_verbatim(wl, caplog):
+    secret = '["s3cr3t-value"]'
+    hub = make_hub(notify_data=secret)
+    assert hub.notify_data == {}
+    assert "s3cr3t-value" not in caplog.text
+    assert "must be a JSON object" in caplog.text
+
+
 def test_min_detectable_leak_l_day(wl):
     hub = make_hub()
     assert hub.min_detectable_leak_l_day == 1812.3

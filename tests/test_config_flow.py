@@ -135,6 +135,49 @@ def test_option_schema_uses_persisted_options():
 
 # --- _validate --------------------------------------------------------------
 
+def test_option_schema_survives_malformed_options():
+    """A hand-edited entry must not be able to break the Configure dialog."""
+    # non-numeric values fall back to the defaults
+    options = {
+        "water_meter": "sensor.water",
+        "quiet_min": "abc",
+        "limit_min": None,
+        "pulse_ft3": "",
+    }
+    defaults = flow._option_schema(_hass_with({}), options).defaults
+    assert defaults[CONF_QUIET_MIN] == DEFAULT_QUIET_MIN
+    assert defaults[CONF_LIMIT_MIN] == DEFAULT_LIMIT_MIN
+    assert defaults[CONF_PULSE_FT3] == DEFAULT_PULSE_FT3
+    # numeric-but-out-of-range is clamped into the selector's bounds, else
+    # voluptuous rejects the default on submit and the form cannot be saved
+    clamped = flow._option_schema(
+        _hass_with({}), {"stale_min": -3, "quiet_min": 0, "pulse_ft3": 0}
+    ).defaults
+    assert clamped[CONF_STALE_MIN] == flow.STALE_MIN_MIN
+    assert clamped[CONF_QUIET_MIN] == flow.QUIET_MIN_MIN
+    assert clamped[CONF_PULSE_FT3] == flow.PULSE_FT3_MIN
+
+
+def test_option_schema_survives_non_string_notify_options():
+    """A non-string notify option must not raise out of the schema builder."""
+    schema = flow._option_schema(_hass_with({}), {"notify_service": 1, "notify_data": 2})
+    assert schema.defaults[flow.CONF_NOTIFY_SERVICE] == ""
+    assert schema.defaults[flow.CONF_NOTIFY_DATA] == ""
+
+
+async def test_validate_rejects_ambiguous_notify_service():
+    """notify.notify is an alias HA routes arbitrarily; it must not be accepted."""
+    ambiguous = _hass_with({"notify": {"notify": True, "send_message": True}})
+    assert await flow._validate(ambiguous, {"notify_service": "notify.notify"}) == (
+        "invalid_notify"
+    )
+    assert await flow._validate(ambiguous, {"notify_service": "notify.send_message"}) == (
+        "invalid_notify"
+    )
+    # a hand-edited non-string value must not raise out of validation
+    assert await flow._validate(_hass_with({}), {"notify_service": 1, "notify_data": 2}) is None
+
+
 async def test_validate_branches():
     ok = _hass_with({"notify": {"telegram": True}, "telegram_bot": {"send_message": True}})
     assert await flow._validate(ok, {"notify_service": ""}) is None
@@ -316,6 +359,31 @@ async def test_form_step_creates_entry():
     assert res["data"] == user_input
 
 
+async def test_form_step_aborts_on_duplicate_meter():
+    """Two entries on one meter would double every alert."""
+    h, _ = _options_handler(_hass_with({"notify": {"telegram": True}}))
+    h.hass.config_entries.entries.append(
+        make_entry(entry_id="e2", water_meter="sensor.dupe")
+    )
+    res = await h.async_step_form(
+        {"water_meter": "sensor.dupe", "notify_service": "notify.telegram"}
+    )
+    assert res["type"] == "abort"
+    assert res["reason"] == "already_configured"
+
+
+async def test_form_step_allows_keeping_its_own_meter():
+    """Re-saving the options must not abort against this entry's own meter."""
+    h, entry = _options_handler(
+        _hass_with({"notify": {"telegram": True}}), water_meter="sensor.mine"
+    )
+    h.hass.config_entries.entries.append(entry)
+    res = await h.async_step_form(
+        {"water_meter": "sensor.mine", "notify_service": "notify.telegram"}
+    )
+    assert res["type"] == "create_entry"
+
+
 async def test_form_step_shows_initial_form():
     h, _ = _options_handler(_hass_with({}))
     res = await h.async_step_form()
@@ -403,3 +471,32 @@ def hass_with_hub():
     hub = _sim_hub()
     h.hass.data[DOMAIN] = {"e1": hub}
     return h, hub
+
+# --- shipped translations ---------------------------------------------------
+
+def test_english_translation_matches_strings():
+    """HA loads translations/en.json, so the two must never drift apart.
+
+    They were allowed to diverge once already, shipping a stale
+    telegram_bot.send_message example to every user while strings.json carried
+    the corrected text.
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "water_leak_meter"
+    strings = json.loads((root / "strings.json").read_text())
+    english = json.loads((root / "translations" / "en.json").read_text())
+    assert english == strings
+
+
+def test_every_abort_reason_the_flow_emits_is_translated():
+    """An abort without a translation renders as a bare key to the user."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "water_leak_meter"
+    strings = json.loads((root / "strings.json").read_text())
+    # async_step_user and async_step_form both abort on a duplicate meter
+    assert "already_configured" in strings["config"]["abort"]
+    assert "already_configured" in strings["options"]["abort"]
