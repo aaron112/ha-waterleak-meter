@@ -28,5 +28,11 @@ class WaterLeakEntity(Entity):
         await super().async_added_to_hass()
         self.hub.add_entity(self)
 
+    async def async_will_remove_from_hass(self) -> None:
+        # Otherwise a removed entity stays in the hub's fan-out list forever
+        # and every later update writes to a dead object.
+        self.hub.remove_entity(self)
+        await super().async_will_remove_from_hass()
+
     def update_from_hub(self) -> None:
         raise NotImplementedError

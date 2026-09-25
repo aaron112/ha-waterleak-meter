@@ -41,7 +41,7 @@ def _install_ha_stubs() -> None:
     core.Event = object
     core.callback = lambda f: f
 
-    pn = _make_pkg("homeassistant.components.persistent_notification")
+    _make_pkg("homeassistant.components.persistent_notification")
 
     dt_util = _make_pkg("homeassistant.util.dt")
     dt_util.utc_from_timestamp = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc)
@@ -57,8 +57,10 @@ def _install_ha_stubs() -> None:
             self.key = key
             self.data: dict[str, Any] = {}
 
-        async def async_load(self) -> dict[str, Any]:
-            return dict(self.data)
+        async def async_load(self) -> Any:
+            # Real HA returns the stored JSON as-is; a corrupt/hand-edited
+            # payload can be any shape, so the stub must not launder it.
+            return self.data
 
         async def async_save(self, data: dict[str, Any]) -> None:
             self.data = dict(data)
@@ -154,12 +156,13 @@ def _install_ha_stubs() -> None:
         async def async_added_to_hass(self) -> None:
             pass
 
+        async def async_will_remove_from_hass(self) -> None:
+            pass
+
         def async_write_ha_state(self) -> None:
             self.__dict__["_writes"] = self.__dict__.get("_writes", 0) + 1
 
     ent.Entity = Entity
-
-    import voluptuous as vol
 
     sel = _make_pkg("homeassistant.helpers.selector")
 
@@ -355,6 +358,7 @@ class FakeServices:
     def __init__(self, services: dict[str, dict[str, bool]] | None = None) -> None:
         self._services = services or {}
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
+        self.blocking_calls: list[bool] = []
 
     def set(self, domain: str, name: str) -> None:
         self._services.setdefault(domain, {})[name] = True
@@ -365,7 +369,19 @@ class FakeServices:
     def has_service(self, domain: str, name: str) -> bool:
         return name in self._services.get(domain, {})
 
-    async def async_call(self, domain: str, service: str, service_data: dict[str, Any]) -> None:
+    async def async_call(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any],
+        blocking: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        # Mirrors real HA: without blocking=True the provider runs in a
+        # background task and the call returns immediately, so a caller cannot
+        # observe delivery failures. Recording the flag lets tests prove
+        # production actually asks for delivery to be awaited.
+        self.blocking_calls.append(blocking)
         self.calls.append((domain, service, service_data))
 
 

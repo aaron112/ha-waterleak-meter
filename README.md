@@ -30,18 +30,20 @@ false alarms.
   - `binary_sensor.water_leak_detector_meter_signal` — problem sensor (no meter data)
   - `sensor.water_leak_detector_continuous_activity` (min) — accumulated continuous flow
   - `sensor.water_leak_detector_last_pulse` (timestamp) — last meter increment
-  - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool use
+  - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool
+    use; it is deliberately not remembered across a restart, so a forgotten
+    toggle can't silence alerts indefinitely
 - Sends notifications through any `notify.*` service — picked from a dropdown
   of the ones installed on your system — or straight through a Telegram bot
   via `telegram_bot.send_message` (no notify layer needed); clear the field
   to disable (a failed send falls back to a persistent notification).
   Optionally add extra per-service data as JSON — e.g. `{"chat_id": "123456"}`
   for a `notify.*` service, or the Telegram recipient for
-  `telegram_bot.send_message`, which was `target` up to Home Assistant 2025.x
-  and is `chat_id` from 2026.2 on (use whichever your core documents) —
-  merged into every notification call. Alerts
-  carry an emoji per kind (💧 detected, ✅ resolved, 📡 signal lost,
-  📶 signal restored, 🧪 test) and name the meter by its display name rather
+  `telegram_bot.send_message` — merged into every notification call. That
+  recipient field was `target` up to Home Assistant 2025.x and is `chat_id`
+  from 2026.2 on, so use whichever your core documents. Alerts carry an emoji per
+  kind (💧 detected, ✅ resolved, 📡 signal lost, 📶 signal restored,
+  ♻️ counter reset, 🧪 test) and name the meter by its display name rather
   than its entity id. A *Send
   test notification* action verifies the notify path, and a **Simulate a leak**
   action replays synthetic meter pulses through the detector so it fires a

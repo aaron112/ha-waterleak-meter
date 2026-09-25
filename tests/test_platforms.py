@@ -4,7 +4,6 @@ import pytest
 
 from conftest import make_entry, make_hub
 
-import custom_components.water_leak_meter as wl
 from custom_components.water_leak_meter import binary_sensor as bin_mod
 from custom_components.water_leak_meter import sensor as sens_mod
 from custom_components.water_leak_meter import switch as sw_mod
@@ -137,6 +136,19 @@ async def test_suppress_switch():
     assert s._attr_is_on is False
 
 
+async def test_entity_removal_unregisters_from_hub():
+    """A removed entity must not stay in the hub's fan-out list forever."""
+    hub = make_hub()
+    s = _Concrete(hub, make_entry())
+    await s.async_added_to_hass()
+    assert hub._entities == [s]
+    await s.async_will_remove_from_hass()
+    assert hub._entities == []
+    # removing twice must not raise
+    await s.async_will_remove_from_hass()
+    assert hub._entities == []
+
+
 # --- platform setup ---------------------------------------------------------
 
 async def test_sensor_platform_setup_entry():
@@ -179,6 +191,24 @@ async def test_pulse_updates_registered_entities(wl, clock):
     await hub._on_meter_change(wl_event(1.0))
     assert s._attr_native_value is not None
     assert s._writes >= 1
+
+
+async def test_leak_fire_pushes_entities_immediately(wl, clock):
+    hub = make_hub()
+    await hub.async_load()
+    s = bin_mod.WaterLeakDetectedSensor(hub, make_entry())
+    await s.async_added_to_hass()
+    # stop exactly on the pulse that crosses the limit (40+40+40 = 120 min):
+    # no later event may arrive to publish the flip, so only the firing path
+    # can make the new state visible
+    for n, minute in enumerate((40, 80, 120, 160), start=1):
+        clock.now = minute * 60.0
+        await hub._on_meter_change(wl_event(n))
+    assert hub.leak_active is True
+    assert s._attr_is_on is True
+    # the crossing pulse wrote twice (its normal push, then the post-flip one):
+    # dropping the post-flip call would leave the sensor OFF for the episode
+    assert s._writes == 2 + len((40, 80, 120, 160))
 
 
 def wl_event(value: float):

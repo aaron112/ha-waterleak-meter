@@ -22,7 +22,12 @@ async def async_setup_entry(
 
 
 class WaterLeakSuppressSwitch(WaterLeakEntity, SwitchEntity):
-    """Suppress leak alerts (e.g. while watering the garden)."""
+    """Suppress leak alerts (e.g. while watering the garden).
+
+    Deliberately NOT persisted: suppression is for a time-boxed activity, and a
+    forgotten toggle must not silence a safety device indefinitely. A restart
+    re-enables alerts, which is the safe direction to fail.
+    """
 
     _attr_name = "Suppress alerts"
     _attr_icon = "mdi:water-off-outline"
