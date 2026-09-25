@@ -27,6 +27,17 @@ python3 -m venv .venv
 - Do not commit `.venv/`, `.pytest_cache/`, `.coverage`, or `htmlcov/` (all
   gitignored).
 
+## Adversarial code review (required before every commit)
+
+Before committing, a fresh agent (one that did not write the change) must
+review the diff adversarially — looking for bugs, edge cases, misuse of the
+stubbed HA surface, and untested behavior.
+
+- Delegate the review to a reviewer subagent with the final diff in hand.
+- If the review fails, fix the findings and run the review again.
+- Loop until the review passes 100%, or every finding has a reasonable,
+  evidence-backed rebuttal (with the `file:line` evidence for each).
+
 ## Rules of thumb
 
 - Small, single-purpose commits. Bump `manifest.json` and tag a release
