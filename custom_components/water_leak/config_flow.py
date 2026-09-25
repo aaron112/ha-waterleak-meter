@@ -1,0 +1,145 @@
+"""Config flow for the Water Leak Detector integration."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
+
+from .const import (
+    CONF_LIMIT_MIN,
+    CONF_NOTIFY_SERVICE,
+    CONF_QUIET_MIN,
+    CONF_WATER_METER,
+    DEFAULT_LIMIT_MIN,
+    DEFAULT_NOTIFY_SERVICE,
+    DEFAULT_QUIET_MIN,
+    DOMAIN,
+    LIMIT_MIN_MAX,
+    LIMIT_MIN_MIN,
+    QUIET_MIN_MAX,
+    QUIET_MIN_MIN,
+)
+
+
+def _number_selector(min_value: float, max_value: float, unit: str) -> selector.NumberSelector:
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=min_value,
+            max=max_value,
+            step=1,
+            mode="box",
+            unit_of_measurement=unit,
+        )
+    )
+
+
+def _user_schema() -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_WATER_METER): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            ),
+            vol.Required(CONF_QUIET_MIN, default=DEFAULT_QUIET_MIN): _number_selector(
+                QUIET_MIN_MIN, QUIET_MIN_MAX, "min"
+            ),
+            vol.Required(CONF_LIMIT_MIN, default=DEFAULT_LIMIT_MIN): _number_selector(
+                LIMIT_MIN_MIN, LIMIT_MIN_MAX, "min"
+            ),
+            vol.Required(
+                CONF_NOTIFY_SERVICE, default=DEFAULT_NOTIFY_SERVICE
+            ): selector.TextSelector(),
+        }
+    )
+
+
+async def _validate(hass: HomeAssistant, user_input: dict[str, Any]) -> str | None:
+    """Return an error key, or None if the input is valid."""
+    notify = user_input[CONF_NOTIFY_SERVICE]
+    if not notify.startswith("notify."):
+        return "invalid_notify"
+    service = notify.split(".", 1)[1]
+    if not hass.services.has_service("notify", service):
+        return "invalid_notify"
+    return None
+
+
+class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Water Leak Detector."""
+
+    VERSION = 1
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            for entry in self._async_current_entries():
+                if entry.options.get(CONF_WATER_METER) == user_input[CONF_WATER_METER]:
+                    return self.async_abort(reason="already_configured")
+            if error := await _validate(self.hass, user_input):
+                errors[CONF_NOTIFY_SERVICE] = error
+            else:
+                return self.async_create_entry(
+                    title="Water Leak Detector",
+                    data={},
+                    options=user_input,
+                )
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_user_schema(),
+            errors=errors,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        return WaterLeakOptionsFlowHandler(config_entry)
+
+
+class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
+    """Options flow allowing edits from the UI."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            if error := await _validate(self.hass, user_input):
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=_option_schema(self._entry.options),
+                    errors={CONF_NOTIFY_SERVICE: error},
+                )
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init", data_schema=_option_schema(self._entry.options)
+        )
+
+
+def _option_schema(options: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_WATER_METER, default=options.get(CONF_WATER_METER)
+            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+            vol.Required(
+                CONF_QUIET_MIN, default=int(options.get(CONF_QUIET_MIN, DEFAULT_QUIET_MIN))
+            ): _number_selector(QUIET_MIN_MIN, QUIET_MIN_MAX, "min"),
+            vol.Required(
+                CONF_LIMIT_MIN, default=int(options.get(CONF_LIMIT_MIN, DEFAULT_LIMIT_MIN))
+            ): _number_selector(LIMIT_MIN_MIN, LIMIT_MIN_MAX, "min"),
+            vol.Required(
+                CONF_NOTIFY_SERVICE, default=options.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE)
+            ): selector.TextSelector(),
+        }
+    )

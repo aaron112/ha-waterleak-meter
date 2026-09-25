@@ -1,0 +1,13 @@
+{
+  "domain": "water_leak",
+  "name": "Water Leak Detector",
+  "codeowners": ["@aaron112"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/aaron112/ha-waterleak-meter",
+  "issue_tracker": "https://github.com/aaron112/ha-waterleak-meter/issues",
+  "requirements": [],
+  "iot_class": "local_push",
+  "version": "1.0.0",
+  "integration_type": "hub"
+}

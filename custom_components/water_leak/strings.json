@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Water Leak Detector",
+        "description": "Tracks the pulses of a cumulative water meter and alerts when water keeps flowing continuously (check toilets, dishwasher, washing machine, water heater, outdoor taps).",
+        "data": {
+          "water_meter": "Water meter",
+          "quiet_min": "Quiet threshold (min)",
+          "limit_min": "Leak threshold (min)",
+          "notify_service": "Notification service (notify.XXX)"
+        }
+      }
+    },
+    "error": {
+      "invalid_notify": "Notify service not found. Use the form notify.telegram."
+    },
+    "abort": {
+      "already_configured": "A Water Leak Detector is already configured for this meter."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Water Leak Detector options",
+        "description": "Adjust detection thresholds or swap the meter / notification service.",
+        "data": {
+          "water_meter": "Water meter",
+          "quiet_min": "Quiet threshold (min)",
+          "limit_min": "Leak threshold (min)",
+          "notify_service": "Notification service (notify.XXX)"
+        }
+      }
+    },
+    "error": {
+      "invalid_notify": "Notify service not found. Use the form notify.telegram."
+    }
+  }
+}
