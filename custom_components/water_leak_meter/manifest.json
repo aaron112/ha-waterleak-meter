@@ -1,5 +1,5 @@
 {
-  "domain": "water_leak",
+  "domain": "water_leak_meter",
   "name": "Water Leak Detection for Meters",
   "codeowners": ["@aaron112"],
   "config_flow": true,

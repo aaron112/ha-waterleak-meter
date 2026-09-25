@@ -40,7 +40,7 @@ false alarms.
 
 1. Install via HACS: **HACS → ⋯ → Custom repositories →**
    `https://github.com/aaron112/ha-waterleak-meter` (type **Integration**), or copy
-   `custom_components/water_leak/` into `config/custom_components/` and restart.
+   `custom_components/water_leak_meter/` into `config/custom_components/` and restart.
 2. *Settings → Devices & Services → Add integration → Water Leak Detection for
    Meters*.
 3. Pick your water meter entity, the thresholds, the meter's pulse size, and

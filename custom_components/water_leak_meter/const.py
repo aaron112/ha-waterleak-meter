@@ -1,6 +1,6 @@
 """Constants for the Water Leak Detection for Meters integration."""
 
-DOMAIN = "water_leak"
+DOMAIN = "water_leak_meter"
 
 PLATFORMS = ["binary_sensor", "sensor", "switch"]
 
@@ -16,7 +16,7 @@ DEFAULT_PULSE_FT3 = 2.0
 DEFAULT_NOTIFY_SERVICE = "notify.telegram"
 
 STORAGE_VERSION = 1
-STORAGE_KEY = "water_leak"
+STORAGE_KEY = "water_leak_meter"
 
 QUIET_MIN_MIN = 5
 QUIET_MIN_MAX = 240
