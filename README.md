@@ -27,14 +27,21 @@ false alarms.
   it and the quiet threshold, and shown on the activity sensor
 - Entities:
   - `binary_sensor.water_leak_detector_leak_detected` — problem sensor (leak active)
+  - `binary_sensor.water_leak_detector_meter_signal` — problem sensor (no meter data)
   - `sensor.water_leak_detector_continuous_activity` (min) — accumulated continuous flow
   - `sensor.water_leak_detector_last_pulse` (timestamp) — last meter increment
   - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool use
 - Sends notifications through any `notify.*` service — picked from a dropdown
   of the ones installed on your system (clear it to disable; a failed send
-  falls back to a persistent notification)
+  falls back to a persistent notification). Optionally add extra per-service
+  data as JSON — e.g. `{"chat_id": "123456"}` to target a Telegram channel —
+  merged into every notification call
 - Fires `water_leak_detected` / `water_leak_resolved` events for your own
   automations
+- Alerts you when the meter stops reporting — signal-loss timeout is
+  configurable (default 3 h, `0` disables it) via
+  `water_leak_signal_lost` / `water_leak_signal_restored` events and the
+  *Meter signal* sensor
 - State survives restarts (JSON storage)
 
 ## Install
@@ -44,9 +51,9 @@ false alarms.
    `custom_components/water_leak_meter/` into `config/custom_components/` and restart.
 2. *Settings → Devices & Services → Add integration → Water Leak Detection for
    Meters*.
-3. Pick your water meter entity, the thresholds, the meter's pulse size, and
-   the notification service (a dropdown of your installed `notify.*` services —
-   leave it empty for no notifications). Done.
+3. Pick your water meter entity, the thresholds, the meter's pulse size, the
+   signal-loss timeout, and the notification service (a dropdown of your
+   installed `notify.*` services — leave it empty for no notifications). Done.
 
 ## Caveats
 

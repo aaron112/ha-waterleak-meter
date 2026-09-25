@@ -11,6 +11,7 @@ ignored, so they cannot cause false alarms.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import time
@@ -25,16 +26,21 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_LIMIT_MIN,
+    CONF_NOTIFY_DATA,
     CONF_NOTIFY_SERVICE,
     CONF_PULSE_FT3,
     CONF_QUIET_MIN,
+    CONF_STALE_MIN,
     CONF_WATER_METER,
     DEFAULT_LIMIT_MIN,
     DEFAULT_PULSE_FT3,
     DEFAULT_QUIET_MIN,
+    DEFAULT_STALE_MIN,
     DOMAIN,
     EVENT_LEAK_DETECTED,
     EVENT_LEAK_RESOLVED,
+    EVENT_SIGNAL_LOST,
+    EVENT_SIGNAL_RESTORED,
     LITERS_PER_CUBIC_FOOT,
     PLATFORMS,
     STORAGE_KEY,
@@ -74,6 +80,21 @@ def _is_number(value: str | None) -> bool:
     return math.isfinite(result)
 
 
+def _parse_notify_data(raw: str | None) -> dict[str, Any]:
+    """Parse the configured notify extra-data JSON; {} if empty/invalid."""
+    if not raw:
+        return {}
+    try:
+        obj = json.loads(raw)
+    except (TypeError, ValueError):
+        _LOGGER.warning("Invalid notify_data JSON, ignoring: %s", raw)
+        return {}
+    if not isinstance(obj, dict):
+        _LOGGER.warning("notify_data must be a JSON object, ignoring: %s", raw)
+        return {}
+    return obj
+
+
 class WaterLeakHub:
     """Holds detection state and reacts to meter pulses."""
 
@@ -89,16 +110,26 @@ class WaterLeakHub:
         self.notify_service: str = (
             entry.options.get(CONF_NOTIFY_SERVICE) or ""
         ).strip()
+        self.stale_min: int = int(
+            entry.options.get(CONF_STALE_MIN, DEFAULT_STALE_MIN)
+        )
+        self.notify_data: dict[str, Any] = _parse_notify_data(
+            entry.options.get(CONF_NOTIFY_DATA, "")
+        )
 
         self.last_value: float | None = None
         self.last_pulse_ts: float | None = None
         self.activity: float = 0.0
         self.leak_active: bool = False
         self.suppressed: bool = False
+        self.signal_lost: bool = False
+        self.unavailable_since: float | None = None
 
         self._store = Store(self.hass, STORAGE_VERSION, f"{STORAGE_KEY}.{entry.entry_id}")
         self._timer: Callable[[], None] | None = None
+        self._stale_timer: Callable[[], None] | None = None
         self._watchdog_seq: int = 0
+        self._stale_seq: int = 0
         self._unsub_track: Callable[[], None] | None = None
         self._entities: list[Any] = []
 
@@ -108,14 +139,18 @@ class WaterLeakHub:
         self.last_pulse_ts = data.get("last_pulse_ts")
         self.activity = float(data.get("activity", 0.0))
         self.leak_active = bool(data.get("leak_active", False))
+        self.signal_lost = bool(data.get("signal_lost", False))
+        self.unavailable_since = data.get("unavailable_since")
         _LOGGER.debug(
-            "Loaded %s: value=%s, pulse=%s, activity=%.1f, leak=%s",
+            "Loaded %s: value=%s, pulse=%s, activity=%.1f, leak=%s, signal_lost=%s",
             self.entry.entry_id,
             self.last_value,
             self.last_pulse_ts,
             self.activity,
             self.leak_active,
+            self.signal_lost,
         )
+        self._check_initial_state()
 
     async def _save(self) -> None:
         await self._store.async_save(
@@ -124,6 +159,8 @@ class WaterLeakHub:
                 "last_pulse_ts": self.last_pulse_ts,
                 "activity": self.activity,
                 "leak_active": self.leak_active,
+                "signal_lost": self.signal_lost,
+                "unavailable_since": self.unavailable_since,
             }
         )
 
@@ -132,10 +169,24 @@ class WaterLeakHub:
             self.hass, [self.water_meter], self._on_meter_change
         )
 
+    def _check_initial_state(self) -> None:
+        """Recover or re-arm signal-loss state based on the meter right now."""
+        state = self.hass.states.get(self.water_meter)
+        if state is None:
+            return
+        if not _is_number(state.state):
+            self._on_unavailable(time.time())
+        elif self.signal_lost:
+            asyncio.create_task(self._on_available())
+
     async def _on_meter_change(self, event: Event) -> None:
         new_state = event.data.get("new_state")
-        if new_state is None or not _is_number(new_state.state):
+        if new_state is None:
             return
+        if not _is_number(new_state.state):
+            self._on_unavailable(time.time())
+            return
+        await self._on_available()
         value = float(new_state.state)
         if self.last_value is not None and value <= self.last_value:
             return
@@ -195,6 +246,58 @@ class WaterLeakHub:
             await self._send_resolved()
         self._notify_entities()
 
+    def _on_unavailable(self, now: float) -> None:
+        """Start (once) the clock for the current offline stretch."""
+        if self.unavailable_since is None:
+            self.unavailable_since = now
+            self._schedule_stale_check()
+
+    def _schedule_stale_check(self) -> None:
+        if self._stale_timer:
+            self._stale_timer()
+        if self.stale_min <= 0:
+            return
+        self._stale_seq += 1
+        seq = self._stale_seq
+
+        async def _check(_now: Any, token: int = seq) -> None:
+            await self._on_signal_lost(token)
+
+        self._stale_timer = async_call_later(
+            self.hass, self.stale_min * 60, _check
+        )
+
+    def _cancel_stale_timer(self) -> None:
+        if self._stale_timer:
+            self._stale_timer()
+            self._stale_timer = None
+
+    async def _on_available(self) -> None:
+        was_lost = self.signal_lost
+        self.unavailable_since = None
+        self._cancel_stale_timer()
+        if was_lost:
+            self.signal_lost = False
+            await self._save()
+            await self._send_signal_restored()
+            self._notify_entities()
+
+    async def _on_signal_lost(self, token: int) -> None:
+        if token != self._stale_seq:
+            return
+        self._stale_timer = None
+        if (
+            self.stale_min <= 0
+            or self.signal_lost
+            or self.unavailable_since is None
+            or (time.time() - self.unavailable_since) / 60.0 < self.stale_min
+        ):
+            return
+        self.signal_lost = True
+        await self._save()
+        await self._send_signal_lost()
+        self._notify_entities()
+
     async def _send_alert(self) -> None:
         self.hass.bus.async_fire(EVENT_LEAK_DETECTED, {"activity_min": self.activity})
         await self._notify(
@@ -202,6 +305,7 @@ class WaterLeakHub:
             f"Water has been flowing nearly non-stop for over "
             f"{self.activity:.0f} minutes. Check toilets, dishwasher, washing "
             f"machine, water heater and outdoor taps!",
+            "water_leak_alert",
         )
 
     async def _send_resolved(self) -> None:
@@ -210,20 +314,45 @@ class WaterLeakHub:
             "Water leak resolved",
             f"No water flow for over {self.quiet_min} minutes. "
             f"Leak assumed resolved.",
+            "water_leak_resolved",
         )
 
-    async def _notify(self, title: str, message: str) -> None:
+    async def _send_signal_lost(self) -> None:
+        self.hass.bus.async_fire(
+            EVENT_SIGNAL_LOST,
+            {"water_meter": self.water_meter, "stale_min": self.stale_min},
+        )
+        await self._notify(
+            "Water meter signal lost",
+            f"No reading from {self.water_meter} for over {self.stale_min} "
+            f"minutes. Check the bridge/receiver power and range, then reset "
+            f"the integration if it stays down.",
+            "water_leak_signal_lost",
+        )
+
+    async def _send_signal_restored(self) -> None:
+        self.hass.bus.async_fire(EVENT_SIGNAL_RESTORED)
+        await self._notify(
+            "Water meter signal restored",
+            f"{self.water_meter} is reporting again.",
+            "water_leak_signal_restored",
+        )
+
+    async def _notify(self, title: str, message: str, notification_id: str) -> None:
         if not self.notify_service:
             return
         if not self.notify_service.startswith("notify."):
             _LOGGER.warning("Invalid notify service configured: %s", self.notify_service)
             return
+        call_data: dict[str, Any] = {"title": title, "message": message}
+        if self.notify_data:
+            call_data["data"] = dict(self.notify_data)
         try:
             await asyncio.wait_for(
                 self.hass.services.async_call(
                     "notify",
                     self.notify_service.split(".", 1)[1],
-                    {"title": title, "message": message},
+                    call_data,
                 ),
                 timeout=10,
             )
@@ -237,7 +366,7 @@ class WaterLeakHub:
                 self.hass,
                 message,
                 title,
-                notification_id=f"water_leak_{'alert' if 'detected' in title else 'resolved'}",
+                notification_id=notification_id,
             )
 
     def set_suppressed(self, value: bool) -> None:
@@ -272,3 +401,5 @@ class WaterLeakHub:
             self._unsub_track()
         if self._timer is not None:
             self._timer()
+        if self._stale_timer is not None:
+            self._stale_timer()

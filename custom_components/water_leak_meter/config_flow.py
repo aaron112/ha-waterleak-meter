@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import voluptuous as vol
@@ -13,14 +14,17 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_LIMIT_MIN,
+    CONF_NOTIFY_DATA,
     CONF_NOTIFY_SERVICE,
     CONF_PULSE_FT3,
     CONF_QUIET_MIN,
+    CONF_STALE_MIN,
     CONF_WATER_METER,
     DEFAULT_LIMIT_MIN,
     DEFAULT_NOTIFY_SERVICE,
     DEFAULT_PULSE_FT3,
     DEFAULT_QUIET_MIN,
+    DEFAULT_STALE_MIN,
     DOMAIN,
     LIMIT_MIN_MAX,
     LIMIT_MIN_MIN,
@@ -28,6 +32,8 @@ from .const import (
     PULSE_FT3_MIN,
     QUIET_MIN_MAX,
     QUIET_MIN_MIN,
+    STALE_MIN_MAX,
+    STALE_MIN_MIN,
 )
 
 
@@ -92,9 +98,15 @@ def _user_schema(hass: HomeAssistant) -> vol.Schema:
             vol.Required(
                 CONF_PULSE_FT3, default=DEFAULT_PULSE_FT3
             ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
+            vol.Required(
+                CONF_STALE_MIN, default=DEFAULT_STALE_MIN
+            ): _number_selector(STALE_MIN_MIN, STALE_MIN_MAX, "min", step=15),
             vol.Optional(
                 CONF_NOTIFY_SERVICE, default=_notify_default(hass)
             ): _notify_selector(hass),
+            vol.Optional(
+                CONF_NOTIFY_DATA, default=""
+            ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
         }
     )
 
@@ -103,12 +115,19 @@ async def _validate(hass: HomeAssistant, user_input: dict[str, Any]) -> str | No
     """Return an error key, or None if the input is valid."""
     notify = (user_input.get(CONF_NOTIFY_SERVICE) or "").strip()
     if not notify:
-        return None
-    if not notify.startswith("notify."):
+        pass
+    elif not notify.startswith("notify."):
         return "invalid_notify"
-    service = notify.split(".", 1)[1]
-    if not hass.services.has_service("notify", service):
+    elif not hass.services.has_service("notify", notify.split(".", 1)[1]):
         return "invalid_notify"
+    notify_data = (user_input.get(CONF_NOTIFY_DATA) or "").strip()
+    if notify_data:
+        try:
+            obj = json.loads(notify_data)
+        except (TypeError, ValueError):
+            return "invalid_notify_data"
+        if not isinstance(obj, dict):
+            return "invalid_notify_data"
     return None
 
 
@@ -124,7 +143,11 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if entry.options.get(CONF_WATER_METER) == user_input[CONF_WATER_METER]:
                     return self.async_abort(reason="already_configured")
             if error := await _validate(self.hass, user_input):
-                errors[CONF_NOTIFY_SERVICE] = error
+                errors[
+                    CONF_NOTIFY_DATA
+                    if error == "invalid_notify_data"
+                    else CONF_NOTIFY_SERVICE
+                ] = error
             else:
                 return self.async_create_entry(
                     title="Water Leak Detection for Meters",
@@ -160,7 +183,11 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="init",
                     data_schema=_option_schema(self.hass, self._entry.options),
-                    errors={CONF_NOTIFY_SERVICE: error},
+                    errors={
+                        CONF_NOTIFY_DATA
+                        if error == "invalid_notify_data"
+                        else CONF_NOTIFY_SERVICE: error
+                    },
                 )
             return self.async_create_entry(title="", data=user_input)
 
@@ -184,11 +211,17 @@ def _option_schema(hass: HomeAssistant, options: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_PULSE_FT3, default=float(options.get(CONF_PULSE_FT3, DEFAULT_PULSE_FT3))
             ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
+            vol.Required(
+                CONF_STALE_MIN, default=int(options.get(CONF_STALE_MIN, DEFAULT_STALE_MIN))
+            ): _number_selector(STALE_MIN_MIN, STALE_MIN_MAX, "min", step=15),
             vol.Optional(
                 CONF_NOTIFY_SERVICE,
                 default=_notify_default(
                     hass, (options.get(CONF_NOTIFY_SERVICE) or "").strip()
                 ),
             ): _notify_selector(hass),
+            vol.Optional(
+                CONF_NOTIFY_DATA, default=options.get(CONF_NOTIFY_DATA, "")
+            ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
         }
     )

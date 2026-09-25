@@ -21,7 +21,12 @@ async def async_setup_entry(
     async_add_entities: Any,
 ) -> None:
     hub = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([WaterLeakDetectedSensor(hub, entry)])
+    async_add_entities(
+        [
+            WaterLeakDetectedSensor(hub, entry),
+            WaterLeakSignalSensor(hub, entry),
+        ]
+    )
 
 
 class WaterLeakDetectedSensor(WaterLeakEntity, BinarySensorEntity):
@@ -37,3 +42,18 @@ class WaterLeakDetectedSensor(WaterLeakEntity, BinarySensorEntity):
     def update_from_hub(self) -> None:
         self._attr_is_on = self.hub.leak_active
         self._attr_icon = "mdi:water-alert" if self.hub.leak_active else "mdi:water-check"
+
+
+class WaterLeakSignalSensor(WaterLeakEntity, BinarySensorEntity):
+    """True while the meter has reported nothing for the stale timeout."""
+
+    _attr_name = "Meter signal"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, hub, entry) -> None:
+        super().__init__(hub, entry)
+        self._attr_unique_id = f"{entry.entry_id}-signal"
+
+    def update_from_hub(self) -> None:
+        self._attr_is_on = self.hub.signal_lost
+        self._attr_icon = "mdi:wifi-off" if self.hub.signal_lost else "mdi:wifi-arrow-up"

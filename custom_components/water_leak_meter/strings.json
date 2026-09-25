@@ -9,19 +9,24 @@
           "quiet_min": "Quiet threshold (min)",
           "limit_min": "Leak threshold (min)",
           "pulse_ft3": "Meter pulse size (ft³)",
-          "notify_service": "Notification service"
+          "stale_min": "Signal-loss timeout (min)",
+          "notify_service": "Notification service",
+          "notify_data": "Notification data (JSON)"
         },
         "data_description": {
           "water_meter": "The sensor reporting your cumulative meter reading in cubic feet. The integration fires a leak alert when this value keeps climbing continuously.",
           "quiet_min": "The longest pause between pulses that still counts as \"water still flowing\". Lower catches slower leaks; too low causes false alarms from a shower or toilet flush. Default 45 min.",
           "limit_min": "How long continuous flow must last before a leak is declared and you're alerted. Default 120 min.",
           "pulse_ft3": "Volume per meter pulse. Check the meter's label (e.g. \"2 ft³ per pulse\"). Controls the smallest leak the cadence method can report.",
-          "notify_service": "Service that receives the alert (e.g. notify.telegram). Pick one from the list, or clear it to turn notifications off — alerts still show on the Leak Detected sensor."
+          "stale_min": "Alert if no reading arrives for this long — your bridge/receiver has likely lost signal. 0 turns the check off. Default 180 min (3 h).",
+          "notify_service": "Service that receives the alert (e.g. notify.telegram). Pick one from the list, or clear it to turn notifications off — alerts still show on the Leak Detected sensor.",
+          "notify_data": "Optional JSON merged into every notification call. For Telegram: {\"chat_id\": \"123456\"}. Leave empty for the default recipient."
         }
       }
     },
     "error": {
-      "invalid_notify": "Pick an available notification service (e.g. notify.telegram)."
+      "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
+      "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}."
     },
     "abort": {
       "already_configured": "A Water Leak Detection for Meters configuration already exists for this meter."
@@ -37,19 +42,24 @@
           "quiet_min": "Quiet threshold (min)",
           "limit_min": "Leak threshold (min)",
           "pulse_ft3": "Meter pulse size (ft³)",
-          "notify_service": "Notification service"
+          "stale_min": "Signal-loss timeout (min)",
+          "notify_service": "Notification service",
+          "notify_data": "Notification data (JSON)"
         },
         "data_description": {
           "water_meter": "The sensor reporting your cumulative meter reading in cubic feet.",
           "quiet_min": "Longest pause between pulses that still counts as water flowing. Lower detects slower leaks but risks false alarms from showers or toilet flushes.",
           "limit_min": "How long continuous flow must last before a leak is declared and you're alerted.",
           "pulse_ft3": "Volume per meter pulse (check the meter's label). Controls the smallest leak the cadence method can report.",
-          "notify_service": "Service that receives the alert, or clear it to disable notifications — alerts still show on the Leak Detected sensor."
+          "stale_min": "Alert if no reading arrives for this long (bridge/receiver signal loss). 0 turns the check off.",
+          "notify_service": "Service that receives the alert, or clear it to disable notifications — alerts still show on the Leak Detected sensor.",
+          "notify_data": "Optional JSON merged into every notification call, e.g. {\"chat_id\": \"123456\"} for Telegram."
         }
       }
     },
     "error": {
-      "invalid_notify": "Pick an available notification service (e.g. notify.telegram)."
+      "invalid_notify": "Pick an available notification service (e.g. notify.telegram).",
+      "invalid_notify_data": "Notification data must be a valid JSON object, e.g. {\"chat_id\": \"123456\"}."
     }
   }
 }
