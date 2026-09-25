@@ -30,8 +30,9 @@ false alarms.
   - `sensor.water_leak_detector_continuous_activity` (min) — accumulated continuous flow
   - `sensor.water_leak_detector_last_pulse` (timestamp) — last meter increment
   - `switch.water_leak_detector_suppress_alerts` — silence overnight/garden/pool use
-- Sends notifications through any `notify.*` service (e.g. `notify.telegram`),
-  fallback to a persistent notification
+- Sends notifications through any `notify.*` service — picked from a dropdown
+  of the ones installed on your system (clear it to disable; a failed send
+  falls back to a persistent notification)
 - Fires `water_leak_detected` / `water_leak_resolved` events for your own
   automations
 - State survives restarts (JSON storage)
@@ -44,7 +45,8 @@ false alarms.
 2. *Settings → Devices & Services → Add integration → Water Leak Detection for
    Meters*.
 3. Pick your water meter entity, the thresholds, the meter's pulse size, and
-   the notification service. Done.
+   the notification service (a dropdown of your installed `notify.*` services —
+   leave it empty for no notifications). Done.
 
 ## Caveats
 

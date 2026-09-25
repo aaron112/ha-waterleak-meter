@@ -30,7 +30,6 @@ from .const import (
     CONF_QUIET_MIN,
     CONF_WATER_METER,
     DEFAULT_LIMIT_MIN,
-    DEFAULT_NOTIFY_SERVICE,
     DEFAULT_PULSE_FT3,
     DEFAULT_QUIET_MIN,
     DOMAIN,
@@ -87,9 +86,9 @@ class WaterLeakHub:
         self.pulse_ft3: float = float(
             entry.options.get(CONF_PULSE_FT3, DEFAULT_PULSE_FT3)
         )
-        self.notify_service: str = entry.options.get(
-            CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE
-        )
+        self.notify_service: str = (
+            entry.options.get(CONF_NOTIFY_SERVICE) or ""
+        ).strip()
 
         self.last_value: float | None = None
         self.last_pulse_ts: float | None = None
@@ -214,6 +213,8 @@ class WaterLeakHub:
         )
 
     async def _notify(self, title: str, message: str) -> None:
+        if not self.notify_service:
+            return
         if not self.notify_service.startswith("notify."):
             _LOGGER.warning("Invalid notify service configured: %s", self.notify_service)
             return
@@ -228,7 +229,7 @@ class WaterLeakHub:
             )
         except Exception as err:
             _LOGGER.warning(
-                "notify.%s failed (%s); falling back to persistent notification",
+                "%s failed (%s); falling back to persistent notification",
                 self.notify_service,
                 err,
             )

@@ -45,7 +45,39 @@ def _number_selector(
     )
 
 
-def _user_schema() -> vol.Schema:
+def _notify_services(hass: HomeAssistant) -> list[str]:
+    """Return the instance's notify services as 'notify.<name>' labels."""
+    services = hass.services.async_services().get("notify", {})
+    return sorted(f"notify.{name}" for name in services)
+
+
+def _notify_default(hass: HomeAssistant, current: str | None = None) -> str:
+    """Pick a default for the notification field.
+
+    `None` means a fresh setup, so prefer a real service. An explicit value
+    (including "") is preserved so the options flow never silently re-enables
+    notifications the user turned off.
+    """
+    if current is not None:
+        return current
+    options = _notify_services(hass)
+    if DEFAULT_NOTIFY_SERVICE in options:
+        return DEFAULT_NOTIFY_SERVICE
+    return options[0] if options else ""
+
+
+def _notify_selector(hass: HomeAssistant) -> selector.SelectSelector:
+    """Dropdown of the instance's notify services, editable + clearable."""
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=_notify_services(hass),
+            mode="dropdown",
+            custom_value=True,
+        )
+    )
+
+
+def _user_schema(hass: HomeAssistant) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_WATER_METER): selector.EntitySelector(
@@ -60,16 +92,18 @@ def _user_schema() -> vol.Schema:
             vol.Required(
                 CONF_PULSE_FT3, default=DEFAULT_PULSE_FT3
             ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
-            vol.Required(
-                CONF_NOTIFY_SERVICE, default=DEFAULT_NOTIFY_SERVICE
-            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_NOTIFY_SERVICE, default=_notify_default(hass)
+            ): _notify_selector(hass),
         }
     )
 
 
 async def _validate(hass: HomeAssistant, user_input: dict[str, Any]) -> str | None:
     """Return an error key, or None if the input is valid."""
-    notify = user_input[CONF_NOTIFY_SERVICE]
+    notify = (user_input.get(CONF_NOTIFY_SERVICE) or "").strip()
+    if not notify:
+        return None
     if not notify.startswith("notify."):
         return "invalid_notify"
     service = notify.split(".", 1)[1]
@@ -100,7 +134,7 @@ class WaterLeakConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_user_schema(),
+            data_schema=_user_schema(self.hass),
             errors=errors,
         )
 
@@ -125,17 +159,17 @@ class WaterLeakOptionsFlowHandler(config_entries.OptionsFlow):
             if error := await _validate(self.hass, user_input):
                 return self.async_show_form(
                     step_id="init",
-                    data_schema=_option_schema(self._entry.options),
+                    data_schema=_option_schema(self.hass, self._entry.options),
                     errors={CONF_NOTIFY_SERVICE: error},
                 )
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
-            step_id="init", data_schema=_option_schema(self._entry.options)
+            step_id="init", data_schema=_option_schema(self.hass, self._entry.options)
         )
 
 
-def _option_schema(options: dict[str, Any]) -> vol.Schema:
+def _option_schema(hass: HomeAssistant, options: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
@@ -150,8 +184,11 @@ def _option_schema(options: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_PULSE_FT3, default=float(options.get(CONF_PULSE_FT3, DEFAULT_PULSE_FT3))
             ): _number_selector(PULSE_FT3_MIN, PULSE_FT3_MAX, "ft³", step=0.1),
-            vol.Required(
-                CONF_NOTIFY_SERVICE, default=options.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE)
-            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_NOTIFY_SERVICE,
+                default=_notify_default(
+                    hass, (options.get(CONF_NOTIFY_SERVICE) or "").strip()
+                ),
+            ): _notify_selector(hass),
         }
     )
